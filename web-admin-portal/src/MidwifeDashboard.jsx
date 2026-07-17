@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { QRCodeSVG } from 'qrcode.react';
 import ChildRegistrationModal from './ChildRegistrationModal';
 import './Dashboard.css';
 
@@ -7,8 +8,13 @@ const MidwifeDashboard = () => {
     const [children, setChildren] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [stats, setStats] = useState({ total: 0, vaccinations: 15, alerts: 3, clinics: 2 });
+    
+    // QR Card Pop-up එක සඳහා States
+    const [selectedChild, setSelectedChild] = useState(null);
+    const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+    const cardRef = useRef();
 
-    // fecting data from database
+    // Database එකෙන් දත්ත ලබාගැනීම
     const fetchChildren = async () => {
         try {
             const res = await axios.get('http://localhost:5000/api/children');
@@ -22,6 +28,17 @@ const MidwifeDashboard = () => {
     useEffect(() => {
         fetchChildren();
     }, []);
+
+    // QR Card එක පමණක් Print කිරීමට ඇති Function එක
+    const handlePrintQR = () => {
+        const printContent = cardRef.current.innerHTML;
+        const originalContent = document.body.innerHTML;
+        
+        document.body.innerHTML = printContent;
+        window.print();
+        document.body.innerHTML = originalContent;
+        window.location.reload(); // Print එකෙන් පසු පිටුව යථා තත්ත්වයට පත් කිරීම
+    };
 
     const handleLogout = () => {
         localStorage.clear();
@@ -41,7 +58,6 @@ const MidwifeDashboard = () => {
                 </div>
                 <ul className="nav-menu">
                     <li className="active">Dashboard Overview</li>
-                    {/* 1. Sidebar onclick */}
                     <li onClick={() => setIsModalOpen(true)} style={{ cursor: 'pointer' }}>
                         Register New Child
                     </li>
@@ -105,7 +121,6 @@ const MidwifeDashboard = () => {
                     </div>
                     <div className="banner-btns">
                         <button className="btn-scan">Quick Scan</button>
-                        {/* 2. Button*/}
                         <button className="btn-start" onClick={() => setIsModalOpen(true)}>+ Start New Registration</button>
                     </div>
                 </div>
@@ -116,7 +131,7 @@ const MidwifeDashboard = () => {
                     <table className="child-table">
                         <thead>
                             <tr>
-                                <th>CHILD NAME</th>
+                                <th>CHILD NAME & DIGITAL ID</th>
                                 <th>DATE OF BIRTH</th>
                                 <th>MOTHER/GUARDIAN</th>
                                 <th>PHONE NUMBER</th>
@@ -125,34 +140,102 @@ const MidwifeDashboard = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {children.map(child => (
-                                <tr key={child._id}>
-                                    <td>
-                                        <div className="child-name-cell">
-                                            <strong>{child.childName}</strong>
-                                            <span>{child.childId}</span>
-                                        </div>
+                            {children.length === 0 ? (
+                                <tr>
+                                    <td colSpan="6" style={{ textAlign: 'center', padding: '20px', color: '#888' }}>
+                                        No registered children found.
                                     </td>
-                                    <td>{new Date(child.dob).toLocaleDateString()}</td>
-                                    <td>{child.motherName}</td>
-                                    <td>{child.phone}</td>
-                                    <td><span className="qr-thumbnail">🔳</span></td>
-                                    <td><button className="btn-view">👁️</button></td>
                                 </tr>
-                            ))}
+                            ) : (
+                                children.map(child => (
+                                    <tr key={child._id}>
+                                        <td>
+                                            <div className="child-name-cell">
+                                                <strong style={{ color: '#1a1a1a', display: 'block' }}>
+                                                    {child.name || child.childName || "No Name Found"}
+                                                </strong>
+                                                <span className="digital-id-sub" style={{ display: 'block', fontSize: '0.85em', color: '#0056b3', marginTop: '3px', fontWeight: '500' }}>
+                                                    {child.digitalHealthId || "No ID Assigned"}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td>{child.dob ? new Date(child.dob).toLocaleDateString() : "N/A"}</td>
+                                        <td>{child.motherName || "N/A"}</td>
+                                        <td>{child.phone || "N/A"}</td>
+                                        
+                                        {/* 🛠️ QR Code Column: සැබෑ QR Code එකක් පෙන්වීම සහ Click කළ විට Modal එක විවෘත කිරීම */}
+                                        <td>
+                                            <div 
+                                                className="qr-code-thumbnail" 
+                                                onClick={() => { setSelectedChild(child); setIsQRModalOpen(true); }}
+                                                style={{ cursor: 'pointer', padding: '4px', background: '#fff', display: 'inline-block', borderRadius: '4px', border: '1px solid #ddd' }}
+                                                title="Click to View & Print QR Card"
+                                            >
+                                                {child.digitalHealthId ? (
+                                                    <QRCodeSVG value={child.digitalHealthId} size={35} />
+                                                ) : (
+                                                    "❌"
+                                                )}
+                                            </div>
+                                        </td>
+
+                                        {/* 🛠️ Action Column: ඇස ක්ලික් කළ විට සම්පූර්ණ සෞඛ්‍ය වාර්තාවලට යාම (ඇලර්ට් එකකින් දැනට පෙන්වයි) */}
+                                        <td>
+                                            <button 
+                                                className="btn-view" 
+                                                onClick={() => alert(`Redirecting to Full Health Profile of ${child.name || "this child"}...\nHere you can see Growth Charts, Vaccination Schedule & Clinical History.`)}
+                                                style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: '1.2em' }}
+                                                title="View Full Health Record"
+                                            >
+                                                👁️
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>
             </main>
 
-            {/* 3. Modal  */}
+            {/* Registration Modal */}
             <ChildRegistrationModal 
-             isOpen={isModalOpen} 
-             onClose={() => setIsModalOpen(false)} 
-             refreshData={fetchChildren}
-             
-             staffId={JSON.parse(localStorage.getItem('user'))?.id} 
+              isOpen={isModalOpen} 
+              onClose={() => setIsModalOpen(false)} 
+              refreshData={fetchChildren}
+              staffId={JSON.parse(localStorage.getItem('user'))?.id} 
             />
+
+            {/* 🛠️ අලුතින්ම එකතු කළ ලස්සන QR Card Pop-up Modal එක */}
+            {isQRModalOpen && selectedChild && (
+                <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+                    <div className="qr-modal-content" style={{ background: '#fff', padding: '25px', borderRadius: '12px', width: '380px', textAlign: 'center', boxShadow: '0px 5px 15px rgba(0,0,0,0.3)' }}>
+                        
+                        {/* මුද්‍රණය වන කොටස ආරම්භය */}
+                        <div ref={cardRef} style={{ padding: '15px', border: '2px dashed #0056b3', borderRadius: '8px', background: '#f8f9fa' }}>
+                            <h3 style={{ color: '#0056b3', margin: '0 0 5px 0' }}>CHILD DIGITAL HEALTH CARD</h3>
+                            <p style={{ fontSize: '0.85em', color: '#666', margin: '0 0 15px 0' }}>Ministry of Healthcare, Sri Lanka</p>
+                            
+                            <div style={{ margin: '20px 0', display: 'flex', justifyContent: 'center' }}>
+                                <QRCodeSVG value={selectedChild.digitalHealthId} size={150} />
+                            </div>
+
+                            <div style={{ textAlign: 'left', fontSize: '0.9em', lineHeight: '1.6' }}>
+                                <div><strong>Child Name:</strong> {selectedChild.name || selectedChild.childName}</div>
+                                <div><strong>Digital ID:</strong> <span style={{ color: '#0056b3', fontWeight: 'bold' }}>{selectedChild.digitalHealthId}</span></div>
+                                <div><strong>Date of Birth:</strong> {new Date(selectedChild.dob).toLocaleDateString()}</div>
+                                <div><strong>Mother's Name:</strong> {selectedChild.motherName}</div>
+                            </div>
+                        </div>
+                        {/* මුද්‍රණය වන කොටස අවසානය */}
+
+                        <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between' }}>
+                            <button onClick={handlePrintQR} style={{ background: '#0056b3', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🖨️ Print Card</button>
+                            <button onClick={() => setIsQRModalOpen(false)} style={{ background: '#6c757d', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer' }}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { IoEye, IoEyeOff } from 'react-icons/io5';
 import axios from 'axios';
 
 const AddStaffModal = ({ isOpen, onClose, refreshData }) => {
@@ -10,6 +11,7 @@ const AddStaffModal = ({ isOpen, onClose, refreshData }) => {
     email: '', 
     password: ''
   });
+  const [passwordVisible, setPasswordVisible] = useState(false);
 
   
   if (!isOpen) return null;
@@ -91,14 +93,25 @@ const AddStaffModal = ({ isOpen, onClose, refreshData }) => {
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
               />
-              <input 
-                type="password" 
-                required
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
-                placeholder="Password"
-                value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
-              />
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type={passwordVisible ? 'text' : 'password'}
+                  required
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="Password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({...formData, password: e.target.value})}
+                  style={{ paddingRight: 40 }}
+                />
+                <span
+                  onClick={() => setPasswordVisible(v => !v)}
+                  style={{ position: 'absolute', right: 15, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#888', fontSize: 22 }}
+                  tabIndex={0}
+                  aria-label={passwordVisible ? 'Hide password' : 'Show password'}
+                >
+                  {passwordVisible ? <IoEyeOff /> : <IoEye />}
+                </span>
+              </div>
             </div>
           </div>
 

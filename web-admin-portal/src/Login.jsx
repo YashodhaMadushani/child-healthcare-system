@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { IoEye, IoEyeOff } from 'react-icons/io5';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import './Login.css';
@@ -8,6 +9,7 @@ const Login = () => {
   const [selectedRole, setSelectedRole] = useState('Doctor');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
   
   const navigate = useNavigate();
 
@@ -62,7 +64,7 @@ const Login = () => {
   return (
     <div className="login-wrapper">
       <div className="info-side">
-        <div className="logo-text">🤍 Digital Child Healthcare</div>
+        <div className="logo-text">🤍 MediKid </div>
         <h1>Empowering Healthcare Professionals</h1>
         <p>Secure access to comprehensive child health records, growth monitoring, and clinic management tools.</p>
       </div>
@@ -94,14 +96,25 @@ const Login = () => {
               onChange={(e) => setIdentifier(e.target.value)}
               required
             />
-            <input 
-              type="password" 
-              placeholder="Password" 
-              className="input-field" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <div style={{ position: 'relative' }}>
+              <input 
+                type={passwordVisible ? 'text' : 'password'} 
+                placeholder="Password" 
+                className="input-field"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={{ paddingRight: 40 }}
+              />
+              <span
+                onClick={() => setPasswordVisible(v => !v)}
+                style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#888', fontSize: 22 }}
+                tabIndex={0}
+                aria-label={passwordVisible ? 'Hide password' : 'Show password'}
+              >
+                {passwordVisible ? <IoEyeOff /> : <IoEye />}
+              </span>
+            </div>
             <button type="submit" className="login-btn">Login →</button>
           </form>
 

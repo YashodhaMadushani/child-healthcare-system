@@ -15,10 +15,10 @@ const chartData = [
 const Dashboard = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [staffData, setStaffData] = useState([]);
-
+// Fetching staff data from the backend 
   const fetchStaff = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/users/staff'); 
+      const res = await axios.get('http://localhost:5000/api/auth/staff'); 
       setStaffData(res.data);
     } catch (err) {
       console.error("Data fetch failed:", err);
@@ -34,6 +34,10 @@ const Dashboard = () => {
     window.location.href = '/';
   };
 
+  // 🛠️ Database එකෙන් එන Doctors සහ Midwives ගණන නිවැරදිව වෙන් කරගැනීම
+  const doctorCount = staffData.filter(s => s.role && s.role.toLowerCase() === 'doctor').length;
+  const midwifeCount = staffData.filter(s => s.role && s.role.toLowerCase() === 'midwife').length;
+
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
       
@@ -41,7 +45,7 @@ const Dashboard = () => {
       <div className="w-72 bg-[#001529] text-white p-6 flex flex-col shadow-2xl sticky top-0 h-screen">
         <div className="flex items-center gap-3 mb-10 px-2">
           <span className="text-2xl text-white">🤍</span>
-          <h2 className="text-xl font-bold tracking-tight">Healthcare Admin</h2>
+          <h2 className="text-xl font-bold tracking-tight"> MediKid Admin</h2>
         </div>
         
         <nav className="flex-1 space-y-2">
@@ -84,8 +88,10 @@ const Dashboard = () => {
         {/* Stats Cards Row */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
           <StatCard title="Registered Children" value="1,248" change="+12%" color="bg-blue-500" />
-          <StatCard title="Active Doctors" value={staffData.filter(s => s.role.toLowerCase() === 'doctor').length || 45} change="+3 new" color="bg-emerald-500" />
-          <StatCard title="Midwives" value={staffData.filter(s => s.role.toLowerCase() === 'midwife').length || 32} change="+2 new" color="bg-purple-500" />
+          {/* 🛠️ Dynamic Doctors Count */}
+          <StatCard title="Active Doctors" value={doctorCount > 0 ? doctorCount : 0} change={`+${doctorCount} new`} color="bg-emerald-500" />
+          {/* 🛠️ Dynamic Midwives Count */}
+          <StatCard title="Midwives" value={midwifeCount > 0 ? midwifeCount : 0} change={`+${midwifeCount} new`} color="bg-purple-500" />
           <StatCard title="Vaccinations" value="428" change="+6.7%" color="bg-amber-500" />
         </div>
 
@@ -118,7 +124,7 @@ const Dashboard = () => {
                             {staff.role}
                           </span>
                         </td>
-                        <td className="py-5 text-slate-500">{staff.clinic || 'N/A'}</td>
+                        <td className="py-5 text-slate-500">{staff.assignedClinic || 'N/A'}</td>
                         <td className="py-5">
                           <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-wider border border-emerald-100">Active</span>
                         </td>

@@ -58,7 +58,8 @@
     text-align: center;
     padding: 20px;
 }
-/* Print Styles */
+
+/* --- QR Card Display Styles --- */
 .qr-card-to-print {
     padding: 30px;
     border: 2px solid #0052FF;
@@ -69,16 +70,28 @@
     margin: 20px auto;
 }
 
-.card-header-print h4 { margin: 0; color: #0052FF; letter-spacing: 1px; }
-.qr-body { margin-top: 20px; }
-.child-info-print { text-align: left; margin-top: 15px; font-size: 14px; }
-.card-footer-print { margin-top: 20px; font-size: 10px; color: #666; border-top: 1px dashed #ccc; padding-top: 10px; }
+.card-header-print h4 { 
+    margin: 0; 
+    color: #0052FF; 
+    letter-spacing: 1px; 
+}
 
-/* Removing other elements when printing */
-@media print {
-    body * { visibility: hidden; }
-    .qr-card-to-print, .qr-card-to-print * { visibility: visible; }
-    .qr-card-to-print { position: absolute; left: 0; top: 0; }
+.qr-body { 
+    margin-top: 20px; 
+}
+
+.child-info-print { 
+    text-align: left; 
+    margin-top: 15px; 
+    font-size: 14px; 
+}
+
+.card-footer-print { 
+    margin-top: 20px; 
+    font-size: 10px; 
+    color: #666; 
+    border-top: 1px dashed #ccc; 
+    padding-top: 10px; 
 }
 
 .btn-print {
@@ -89,4 +102,46 @@
     border-radius: 6px;
     margin-right: 10px;
     cursor: pointer;
+}
+
+/* ==========================================================================
+   Removing other elements when printing (Examiner Feedback Optimization)
+   ========================================================================== */
+@media print {
+    /* 1. පිටුවේ ඇති අනෙකුත් සියලුම දේ සම්පූර්ණයෙන්ම සඟවන්න */
+    body * { 
+        visibility: hidden; 
+    }
+    
+    /* 2. මෝඩල් එකේ පසුබිම් සහ බොක්ස් ශැඩෝ මුද්‍රණයෙන් ඉවත් කරන්න */
+    .modal-overlay, .modal-content, .success-view {
+        background: transparent !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* 3. මුද්‍රණය විය යුතු කාඩ්පත සහ එහි අන්තර්ගතය පමණක් දර්ශනය කරන්න */
+    .qr-card-to-print, .qr-card-to-print * { 
+        visibility: visible; 
+    }
+    
+    /* 4. කාඩ්පත A4 පිටුවේ හරියටම මධ්‍යගත (Center alignment) කරන්න */
+    .qr-card-to-print { 
+        position: absolute; 
+        left: 50%;
+        top: 10%;
+        transform: translateX(-50%);
+        width: 350px;
+        border: 2px solid #0052FF !important; /* තද නිල් පැහැති බෝඩරය පැහැදිලිව පෙන්වීමට */
+        background-color: white !important;
+        -webkit-print-color-adjust: exact; /* බ්‍රවුසරයෙන් වර්ණ මැකී යාම වැලැක්වීමට */
+        print-color-adjust: exact;
+        page-break-inside: avoid;
+    }
+
+    /* 5. මුද්‍රණය වන පිටුවේ බටන්ස් දර්ශනය වීම වලක්වන්න */
+    .modal-actions, .btn-print, .btn-close {
+        display: none !important;
+    }
 }
