@@ -6,13 +6,12 @@ import { useRouter } from 'expo-router';
 
 export default function LoginScreen() {
   const router = useRouter();
-  // 🔄 Email හෝ Phone Number එකක් ඇතුළත් කිරීමට identifier ලෙස වෙනස් කළා
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
 
   const handleLogin = async () => {
-    // 🌟 Validation: හිස් දත්ත පරීක්ෂාව
+    // empty fields validation
     if (!identifier || !password) {
       Alert.alert('Required Information', 'Please enter your email/phone number and password.');
       return;
@@ -20,19 +19,19 @@ export default function LoginScreen() {
 
     try {
       const response = await axios.post('http://10.49.217.230:5000/api/auth/login', {
-        identifier, // 🚀 බැකෙන්ඩ් එක බලාපොරොත්තු වන පරිදි identifier එක කෙලින්ම යවයි
+        identifier, 
         password,
         role: 'parent'
       });
 
       if (response.status === 200) {
-        const { name, children } = response.data.user; // Backend එකෙන් එන children array එක
+        const { name, children } = response.data.user; // array coming from backend
 
-        // 🌟 Validation & Navigation Logic: ළමයි ගණන අනුව වෙනස් වීම
+        // Validation & Navigation Logic: changing according to the number of children
         if (!children || children.length === 0) {
           Alert.alert('No Profiles Found', 'There are no child profiles linked to this account.');
         } else if (children.length > 1) {
-          // 1️⃣ ළමයි 2ක් හෝ ඊට වැඩි නම් -> Child Selector Screen එකට
+          // 2 children or more -> navigate to child-selector screen
           router.replace({
             pathname: '/child-selector',
             params: { 
@@ -41,7 +40,7 @@ export default function LoginScreen() {
             }
           });
         } else {
-          // 2️⃣ එක ළමයයි නම් -> කෙලින්ම Dashboard එකට
+          // 1 child -> navigate directly to dashboard with that child's ID
           router.replace({
             pathname: '/dashboard',
             params: {
@@ -70,14 +69,13 @@ export default function LoginScreen() {
           <Text style={styles.subText}>{"Sign in to access your child's health records"}</Text>
 
           <View style={styles.inputSection}>
-            {/* 🔄 Label එක සහ Placeholder එක Email or Phone Number ලෙස වෙනස් කළා */}
             <Text style={styles.label}>Email Address or Phone Number</Text>
             <TextInput 
               style={styles.input} 
               placeholder="example@email.com or 077XXXXXXX" 
               value={identifier}
               onChangeText={setIdentifier}
-              keyboardType="default" // 🔤 අකුරු සහ ඉලක්කම් දෙකම ගැසීමට default ලෙස තැබුවා
+              keyboardType="default" 
               autoCapitalize="none"
               autoCorrect={false}
             />

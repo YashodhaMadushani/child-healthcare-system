@@ -7,11 +7,11 @@ export default function ChildSelectorScreen() {
   const router = useRouter();
   const { pName, childrenList } = useLocalSearchParams();
   
-  // Stringify කරලා එවපු Array එක නැවත Parse කරගන්නවා
+ 
   const children = childrenList ? JSON.parse(childrenList) : [];
 
   const handleSelectChild = (digitalHealthId) => {
-    // තෝරාගත් දරුවාගේ ID එකත් අරන් Dashboard එකට යනවා
+   
     router.replace({
       pathname: '/dashboard',
       params: {

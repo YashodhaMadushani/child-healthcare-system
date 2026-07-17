@@ -7,7 +7,7 @@ export default function SelectChild() {
   const router = useRouter();
   const params = useLocalSearchParams();
   
-  // Login එකෙන් එවූ childIds string එක නැවත Array එකක් බවට පත් කිරීම
+  // convert childIds from string to array
   const children = params.childIds ? JSON.parse(params.childIds) : [];
   const parentName = params.pName || "Parent";
 
@@ -15,7 +15,7 @@ export default function SelectChild() {
   router.push({
     pathname: '/dashboard',
     params: { 
-      cId: selectedId, // මෙන්න මේ ID එක Dashboard එකේ QR එකට පාවිච්චි වෙනවා
+      cId: selectedId, 
       pName: parentName 
     }
   });

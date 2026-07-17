@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
 
-// 💡 මෙතන උඩින්ම addChildToParent කියන එකත් controller එකෙන් import කරගන්නවා
+
 const { 
   registerStaff, 
   registerParent, 
   loginUser, 
   getStaff, 
-  addChildToParent // 👈 මේ නම මෙතන තියෙනවාදැයි ඩබල් චෙක් කරගන්න
+  addChildToParent 
 } = require('../controllers/authController');
 
 // Routes Mapping

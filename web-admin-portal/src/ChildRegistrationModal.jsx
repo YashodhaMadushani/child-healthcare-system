@@ -4,11 +4,11 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { useReactToPrint } from 'react-to-print';
 import './Modal.css';
 
-// 🛠️ 'staffId' Prop එකක් ලෙස ඇතුළත් කර ඇති අතර, එය ලොග් වී සිටින නිලධාරියා හඳුනා ගැනීමට යොදා ගනී
+
 const ChildRegistrationModal = ({ isOpen, onClose, refreshData, staffId }) => {
     const componentRef = useRef();
     
-    // Form එකේ මූලික හිස් දත්ත ව්‍යුහය (Initial State)
+   
     const initialFormState = {
         childName: '',
         dob: '',
@@ -36,9 +36,9 @@ const ChildRegistrationModal = ({ isOpen, onClose, refreshData, staffId }) => {
         console.log("Submitting form data to Backend...", formData);
 
         try {
-            // 🛠️ Backend එකේ Controller එක බලාපොරොත්තු වන 'name' සහ අනෙකුත් fields හරියටම ගලපා ඇත
+            
             const res = await axios.post('http://localhost:5000/api/children/register', {
-                name: formData.childName, // childName වෙනුවට Backend Schema එකේ ඇති 'name' ලෙසම යවයි
+                name: formData.childName,
                 dob: formData.dob,
                 gender: formData.gender,
                 motherName: formData.motherName,
@@ -46,22 +46,22 @@ const ChildRegistrationModal = ({ isOpen, onClose, refreshData, staffId }) => {
                 birthHeight: Number(formData.birthHeight) || 0,
                 phone: formData.phone,
                 address: formData.address,
-                registeredBy: staffId || "Staff Member" // වගවීම තහවුරු කිරීමට Staff ID එක යැවීම
+                registeredBy: staffId || "Staff Member"
             });
             
-            // Backend එකෙන් status 201 (Created) සහ child object එක ලැබුණේ දැයි බලයි
+            
             if (res.status === 201 && res.data.child) {
                 
-                // සාර්ථකව ලැබුණු දත්ත මතක තබාගෙන QR Card එක පෙන්වීමට සකසයි
+                
                 setRegisteredChild({
                     digitalHealthId: res.data.child.digitalHealthId,
-                    childName: res.data.child.name, // Backend එකෙන් එන්නේ 'name' ලෙසයි
+                    childName: res.data.child.name, 
                     motherName: res.data.child.motherName
                 });
                 
                 alert("Child registered successfully with Lifelong Digital ID!");
                 
-                // Dashboard ලිස්ට් එක පිටුපසින් Auto Refresh කරවීමට
+               
                 if (refreshData) refreshData();
             }
         } catch (err) {
@@ -70,10 +70,10 @@ const ChildRegistrationModal = ({ isOpen, onClose, refreshData, staffId }) => {
         }
     };
 
-    // 🛠️ සාර්ථකව ලියාපදිංචි වී අවසන් වූ පසු Form එක පිරිසිදු කර Modal එක වැසීමට
+  
     const handleCloseAndReset = () => {
         setRegisteredChild(null);
-        setFormData(initialFormState); // Form fields සියල්ලම සදහටම Reset වේ
+        setFormData(initialFormState); 
         onClose();
     };
 
@@ -111,7 +111,7 @@ const ChildRegistrationModal = ({ isOpen, onClose, refreshData, staffId }) => {
                                     <option value="Female">Female</option>
                                 </select>
                                 
-                                {/* 4. Birth Weight (🛠️ onChange සහ value බන්ධනය කර ඇත) */}
+                               
                                 <input 
                                     type="number" 
                                     step="0.01" 
@@ -121,7 +121,7 @@ const ChildRegistrationModal = ({ isOpen, onClose, refreshData, staffId }) => {
                                     onChange={e => setFormData({...formData, birthWeight: e.target.value})} 
                                 />
                                 
-                                {/* 5. Birth Height (🛠️ onChange සහ value බන්ධනය කර ඇත) */}
+                                
                                 <input 
                                     type="number" 
                                     step="0.1" 

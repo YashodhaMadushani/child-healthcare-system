@@ -34,7 +34,7 @@ const Dashboard = () => {
     window.location.href = '/';
   };
 
-  // 🛠️ Database එකෙන් එන Doctors සහ Midwives ගණන නිවැරදිව වෙන් කරගැනීම
+  
   const doctorCount = staffData.filter(s => s.role && s.role.toLowerCase() === 'doctor').length;
   const midwifeCount = staffData.filter(s => s.role && s.role.toLowerCase() === 'midwife').length;
 

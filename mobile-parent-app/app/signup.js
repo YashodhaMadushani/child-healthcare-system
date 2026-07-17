@@ -6,14 +6,14 @@ import { useRouter } from 'expo-router';
 
 export default function SignupScreen() {
   const [name, setName] = useState(''); 
-  const [digitalHealthId, setDigitalHealthId] = useState(''); // childId -> digitalHealthId
-  const [contactMethod, setContactMethod] = useState('email'); // 'email' හෝ 'phone'
+  const [digitalHealthId, setDigitalHealthId] = useState(''); 
+  const [contactMethod, setContactMethod] = useState('email'); 
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
   
-  // OTP ප්‍රාන්ත (States)
+  
   const [otpRequired, setOtpRequired] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   
@@ -21,7 +21,7 @@ export default function SignupScreen() {
   const BACKEND_URL = 'http://10.49.217.230:5000/api/auth/register-parent';
 
   const handleSignup = async () => {
-    // මූලික වැලිඩේෂන්
+    
     if (!name || !digitalHealthId || !password) {
       Alert.alert("Error", "Please fill all required fields");
       return;
@@ -40,7 +40,7 @@ export default function SignupScreen() {
     }
 
     try {
-      // 1️⃣ පියවර: OTP එකක් ඉල්ලා සිටීම
+      // step 1 : request OTP code from backend
       if (!otpRequired) {
         const response = await axios.post(BACKEND_URL, {
           name,
@@ -58,7 +58,7 @@ export default function SignupScreen() {
         return;
       }
 
-      // 2️⃣ පියවර: OTP එක සමඟ ගිණුම තහවුරු කර සෑදීම
+      // step 2: verify the account with the OTP code
       if (!otpCode) {
         Alert.alert("Error", "Please enter the OTP code");
         return;
@@ -111,7 +111,7 @@ export default function SignupScreen() {
             editable={!otpRequired}
           />
 
-          {/* Email / Phone තෝරාගැනීමේ Tab Selector එක */}
+         
           <Text style={styles.label}>Register Using</Text>
           <View style={styles.tabContainer}>
             <TouchableOpacity 
@@ -173,7 +173,7 @@ export default function SignupScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* 🌟 OTP Field එක අවශ්‍ය වූ විට පමණක් දිස්වේ */}
+          
           {otpRequired && (
             <View style={styles.otpBox}>
               <Text style={[styles.label, { color: '#007bff' }]}>Enter 4-Digit OTP Code</Text>

@@ -9,12 +9,12 @@ const MidwifeDashboard = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [stats, setStats] = useState({ total: 0, vaccinations: 15, alerts: 3, clinics: 2 });
     
-    // QR Card Pop-up එක සඳහා States
+    // states for QR code
     const [selectedChild, setSelectedChild] = useState(null);
     const [isQRModalOpen, setIsQRModalOpen] = useState(false);
     const cardRef = useRef();
 
-    // Database එකෙන් දත්ත ලබාගැනීම
+    //fetch data from database
     const fetchChildren = async () => {
         try {
             const res = await axios.get('http://localhost:5000/api/children');
@@ -29,7 +29,7 @@ const MidwifeDashboard = () => {
         fetchChildren();
     }, []);
 
-    // QR Card එක පමණක් Print කිරීමට ඇති Function එක
+    // QR code print function
     const handlePrintQR = () => {
         const printContent = cardRef.current.innerHTML;
         const originalContent = document.body.innerHTML;
@@ -37,7 +37,7 @@ const MidwifeDashboard = () => {
         document.body.innerHTML = printContent;
         window.print();
         document.body.innerHTML = originalContent;
-        window.location.reload(); // Print එකෙන් පසු පිටුව යථා තත්ත්වයට පත් කිරීම
+        window.location.reload(); 
     };
 
     const handleLogout = () => {
@@ -163,7 +163,7 @@ const MidwifeDashboard = () => {
                                         <td>{child.motherName || "N/A"}</td>
                                         <td>{child.phone || "N/A"}</td>
                                         
-                                        {/* 🛠️ QR Code Column: සැබෑ QR Code එකක් පෙන්වීම සහ Click කළ විට Modal එක විවෘත කිරීම */}
+                                        
                                         <td>
                                             <div 
                                                 className="qr-code-thumbnail" 
@@ -179,7 +179,7 @@ const MidwifeDashboard = () => {
                                             </div>
                                         </td>
 
-                                        {/* 🛠️ Action Column: ඇස ක්ලික් කළ විට සම්පූර්ණ සෞඛ්‍ය වාර්තාවලට යාම (ඇලර්ට් එකකින් දැනට පෙන්වයි) */}
+                                        
                                         <td>
                                             <button 
                                                 className="btn-view" 
@@ -206,12 +206,12 @@ const MidwifeDashboard = () => {
               staffId={JSON.parse(localStorage.getItem('user'))?.id} 
             />
 
-            {/* 🛠️ අලුතින්ම එකතු කළ ලස්සන QR Card Pop-up Modal එක */}
+           
             {isQRModalOpen && selectedChild && (
                 <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
                     <div className="qr-modal-content" style={{ background: '#fff', padding: '25px', borderRadius: '12px', width: '380px', textAlign: 'center', boxShadow: '0px 5px 15px rgba(0,0,0,0.3)' }}>
                         
-                        {/* මුද්‍රණය වන කොටස ආරම්භය */}
+                       
                         <div ref={cardRef} style={{ padding: '15px', border: '2px dashed #0056b3', borderRadius: '8px', background: '#f8f9fa' }}>
                             <h3 style={{ color: '#0056b3', margin: '0 0 5px 0' }}>CHILD DIGITAL HEALTH CARD</h3>
                             <p style={{ fontSize: '0.85em', color: '#666', margin: '0 0 15px 0' }}>Ministry of Healthcare, Sri Lanka</p>
@@ -227,7 +227,7 @@ const MidwifeDashboard = () => {
                                 <div><strong>Mother's Name:</strong> {selectedChild.motherName}</div>
                             </div>
                         </div>
-                        {/* මුද්‍රණය වන කොටස අවසානය */}
+                        
 
                         <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between' }}>
                             <button onClick={handlePrintQR} style={{ background: '#0056b3', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🖨️ Print Card</button>

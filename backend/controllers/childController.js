@@ -1,30 +1,30 @@
 const Child = require('../models/Child');
 
-// 1. දරුවන් ලියාපදිංචි කිරීමේ ෆන්ක්ෂන් එක
+// 1. Register a new child
 const registerChild = async (req, res) => {
   try {
     const { name, dob, gender, birthWeight, birthHeight, motherName, phone, address } = req.body;
 
-    // අනිවාර්ය Fields හිස්දැයි පරීක්ෂා කිරීම
+    // Validation: Check for required fields
     if (!name || !dob || !motherName || !phone) {
       return res.status(400).json({ msg: 'Please fill in all required fields.' });
     }
 
-    // 🛠️ 1. දරුවාගේ උපන් දිනයෙන් (DOB) වර්ෂය පමණක් වෙන් කර ගැනීම
+    // separate the year from the date of birth to use in the Digital Health ID
     const birthDateObj = new Date(dob);
-    const birthYear = birthDateObj.getFullYear(); // උදා: 2025 හෝ 2026
+    const birthYear = birthDateObj.getFullYear(); 
 
-    // 🛠️ 10000 ත් 99999 ත් අතර සසම්භාවී (Random) ඉලක්කම් 5ක අංකයක් උත්පාදනය කිරීම
+    // generate a random 5-digit number for the Digital Health ID
     const randomNumber = Math.floor(10000 + Math.random() * 90000); 
 
-    // 🛠️ ස්ත්‍රී/පුරුෂ භාවය අනුව මැද අංකය 1 (Male) හෝ 2 (Female) ලෙස තීරණය කිරීම
+    // determine the gender code based on the provided gender (1 for Male,2 for Female)
     const genderCode = gender === 'Male' ? 1 : 2;
 
-    // 🛠️ ඔබ ඉල්ලූ නිවැරදිම නව ආකෘතිය: SL-2026-1-59986 හෝ SL-2026-2-59986
+    // generate the Digital Health ID in the format SL-YYYY-G-RANDOMNUMBER
     const digitalHealthId = `SL-${birthYear}-${genderCode}-${randomNumber}`;
 
     const newChild = new Child({
-      digitalHealthId, // අලුතින්ම සකස් කළ ID එක Database එකට එකතු වේ
+      digitalHealthId, 
       name, 
       dob,
       gender,
@@ -43,10 +43,10 @@ const registerChild = async (req, res) => {
   }
 };
 
-// 2. දරුවන්ගේ ලේඛනය (List) ලබාගැනීමේ ෆන්ක්ෂන් එක
+// 2. Get all registered children
 const getChildren = async (req, res) => {
   try {
-    // Database එකේ ඉන්න සියලුම දරුවන්ගේ විස්තර අලුත්ම අය මුලට එන සේ (createdAt: -1) ලබාගනී
+    // Fetch all children from the database, sorted by creation date in descending order
     const children = await Child.find().sort({ createdAt: -1 }); 
     res.status(200).json(children);
   } catch (err) {
@@ -55,7 +55,7 @@ const getChildren = async (req, res) => {
   }
 };
 
-// ⚠️ routes වලට පාවිච්චි කරන්න මේ functions දෙකම export කර ඇත
+
 module.exports = { 
   registerChild, 
   getChildren 

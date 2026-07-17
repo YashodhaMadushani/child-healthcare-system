@@ -3,37 +3,37 @@ const Child = require('../models/Child');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// 🌟 පොදු Email Validation Function එකක්
+// common utility function to validate email format
 const isValidEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
 
-// 1. Staff සාමාජිකයින් ලියාපදිංචි කිරීම
+// 1. Register Staff Member (Admin Panel)
 const registerStaff = async (req, res) => {
   const { name, email, password, role, clinic } = req.body;
   
   try {
-    // Validation: සියලුම දත්ත ඇතුළත් කර ඇත්දැයි බැලීම
+    // Validation: Required fields check
     if (!name || !email || !password || !role) {
       return res.status(400).json({ msg: 'Please enter all required fields.' });
     }
 
-    // Validation: Email ආකෘතිය නිවැරදිදැයි බැලීම
+    // Validation: Email format check
     if (!isValidEmail(email)) {
       return res.status(400).json({ msg: 'Invalid email format.' });
     }
 
-    // Validation: Password එකේ ආරක්ෂාව (අවම වශයෙන් අකුරු 6ක්)
+    // Validation: Password length check
     if (password.length < 6) {
       return res.status(400).json({ msg: 'Password must be at least 6 characters long.' });
     }
 
-    // Validation: දැනටමත් Email එක පද්ධතියේ තිබේදැයි බැලීම
+    // Validation: Check if email already exists in the database
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ msg: 'This email is already in use.' });
 
-    // දත්ත තැන්පත් කිරීම
+    // store data
     user = new User({ name, email, password, role: role.toLowerCase(), assignedClinic: clinic || "N/A" });
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(password, salt);
@@ -46,7 +46,7 @@ const registerStaff = async (req, res) => {
   }
 };
 
-// 2. මව්පියන් ලියාපදිංචි කිරීම (Mobile App Signup - Updated with OTP and Phone support)
+// 2. Register Parent (Mobile App Signup - Updated with OTP and Phone support)
 const registerParent = async (req, res) => {
   const { name, digitalHealthId, email, phone, password, otp, isOtpVerification } = req.body;
   
@@ -61,7 +61,7 @@ const registerParent = async (req, res) => {
       return res.status(400).json({ msg: 'Password must be at least 6 characters long.' });
     }
 
-    // Web එකෙන් ඇතුළත් කළ පළමු දරුවාගේ ID එක (e.g., SL-2026-01) පද්ධතියේ ඇත්දැයි බැලීම
+    // Validation: Check if the provided Digital Health ID exists in the Child collection
     const childExists = await Child.findOne({ digitalHealthId });
     if (!childExists) {
       return res.status(404).json({ msg: 'Invalid Digital Health ID. Not registered in system.' });
@@ -85,7 +85,7 @@ const registerParent = async (req, res) => {
       return res.status(400).json({ msg: 'Invalid OTP code. Please try again.' });
     }
 
-    // නව මව්පිය ගිණුම සාදා දරුවාව children array එකට එකතු කිරීම
+    // adding child to the children array after parent account creation
     const user = new User({
       name,
       email: email || undefined,
@@ -106,17 +106,17 @@ const registerParent = async (req, res) => {
   }
 };
 
-// 3. පොදු Login පද්ධතිය (Staff & Parents)
+// 3. common Login Function for both Staff and Parent
 const loginUser = async (req, res) => {
   const { identifier, password, role } = req.body;
   
   try {
-    // Validation: හිස් දත්ත පරීක්ෂාව
+    // Validation: empty fields check
     if (!identifier || !password || !role) {
       return res.status(400).json({ msg: 'Please enter all fields.' });
     }
 
-    // පරිශීලකයා සෙවීම (Email හෝ Phone Number මඟින් ලොග් විය හැක)
+    // Validation: Check if the user exists with the provided identifier (email or phone) and role
     const user = await User.findOne({ 
       $or: [{ email: identifier }, { phone: identifier }],
       role: role.toLowerCase() 
@@ -124,11 +124,11 @@ const loginUser = async (req, res) => {
 
     if (!user) return res.status(400).json({ msg: 'No user found with this credentials/role.' });
 
-    // Validation: මුරපදය ගැලපේදැයි බැලීම
+    // Validation: Check if the password matches
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: 'Invalid password.' });
 
-    // JWT Token ජනනය කිරීම
+    // JWT Token generation
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
     
     res.json({ 
@@ -137,7 +137,7 @@ const loginUser = async (req, res) => {
         id: user._id, 
         name: user.name, 
         role: user.role,
-        children: user.children // Mobile App එකට ලින්ක් වූ සියලුම දරුවන්ගේ Digital IDs යවයි
+        children: user.children 
       } 
     });
   } catch (err) {
@@ -146,7 +146,7 @@ const loginUser = async (req, res) => {
   }
 };
 
-// 4. සියලුම Staff ලැයිස්තුව ලබා ගැනීම
+// 4. Get all Staff members
 const getStaff = async (req, res) => {
   try {
     const staff = await User.find({ role: { $in: ['doctor', 'midwife'] } }).select('-password');
@@ -157,30 +157,30 @@ const getStaff = async (req, res) => {
   }
 };
 
-// 5. මවගේ ගිණුමට තවත් දරුවෙක් එකතු කිරීම (Add Another Child using digitalHealthId)
+// 5. Add Another Child to Parent's Account (using digitalHealthId)
 const addChildToParent = async (req, res) => {
   const { userId, digitalHealthId } = req.body; 
   
   try {
-    // Validation: හිස් දත්ත පරීක්ෂාව
+    // Validation: empty fields check
     if (!userId || !digitalHealthId) {
       return res.status(400).json({ msg: 'User ID and Digital Health ID are required.' });
     }
 
-    // Validation: එකතු කරන අලුත් දරුවාගේ Digital ID එක System එකේ ඉන්නවාදැයි බැලීම
+    // Validation: Check if the provided Digital Health ID exists in the Child collection
     const childExists = await Child.findOne({ digitalHealthId });
     if (!childExists) return res.status(404).json({ msg: 'Digital Health ID not found in system.' });
 
-    // මව්පියන්ව සොයා ගැනීම
+    // Find the parent user
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ msg: 'Parent account not found.' });
 
-    // Validation: මේ Digital ID එක දැනටමත් මේ ගිණුමට ලින්ක් කර ඇත්දැයි බැලීම (Duplicate Check)
+    // Validation: Check if the provided Digital Health ID is already linked to the parent's account (Duplicate Check)
     if (user.children.includes(digitalHealthId)) {
       return res.status(400).json({ msg: 'This child is already linked to your account.' });
     }
 
-    // Array එකට Digital ID එක එකතු කිරීම
+    // add the new child to the array
     user.children.push(digitalHealthId);
     await user.save();
 
