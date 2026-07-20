@@ -76,13 +76,24 @@ const registerParent = async (req, res) => {
       if (phoneExists) return res.status(400).json({ msg: 'This phone number is already registered.' });
     }
 
-    // OTP Verification Phase
+    // OTP Step 1: send OTP step (not save to DB)
     if (!isOtpVerification) {
+      console.log("ℹ️ OTP Step 1 triggered. Verification required.");
       return res.status(200).json({ msg: 'OTP sent successfully!', otpRequired: true });
     }
 
+    // OTP Step 2: verify the oTP
     if (otp !== '1234') {
       return res.status(400).json({ msg: 'Invalid OTP code. Please try again.' });
+    }
+
+    // Fetch all children with the same phone number (siblings)
+    
+    const siblingChildren = await Child.find({ phone: phone || childExists.phone });
+    
+    let childrenIds = [digitalHealthId];
+    if (siblingChildren.length > 0) {
+      childrenIds = siblingChildren.map(c => c.digitalHealthId);
     }
 
     // adding child to the children array after parent account creation
@@ -92,17 +103,27 @@ const registerParent = async (req, res) => {
       phone: phone || undefined,
       password,
       role: 'parent',
-      children: [digitalHealthId] // User Schema එකේ children array එකට ඇතුළත් වේ
+      children: childrenIds // User Schema එකේ children array එකට ඇතුළත් වේ
     });
 
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(password, salt);
 
-    await user.save();
-    res.status(201).json({ msg: 'Registration successful! You can now login.', childName: childExists.name });
+    // save the user to the database
+    const savedUser = await user.save();
+    
+    console.log("=========================================");
+    console.log("🎯 USER SUCCESSFULLY SAVED TO DB:", savedUser);
+    console.log("=========================================");
+
+    return res.status(201).json({ 
+      msg: 'Registration successful! You can now login.', 
+      childName: childExists.name,
+      linkedChildren: childrenIds
+    });
   } catch (err) {
-    console.error("Parent Signup Error:", err.message);
-    res.status(500).send("Server Error");
+    console.error("❌ Parent Signup Error:", err.message);
+    return res.status(500).send("Server Error");
   }
 };
 

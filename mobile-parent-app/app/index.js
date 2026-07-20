@@ -1,8 +1,9 @@
 import axios from 'axios';
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons'; 
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -18,14 +19,20 @@ export default function LoginScreen() {
     }
 
     try {
-      const response = await axios.post('http://10.49.217.230:5000/api/auth/login', {
-        identifier, 
+      const response = await axios.post('http://172.22.74.230:5000/api/auth/login', {
+        identifier,
         password,
         role: 'parent'
       });
 
       if (response.status === 200) {
         const { name, children } = response.data.user; // array coming from backend
+
+        // Save token and user info to AsyncStorage
+        if (response.data.token) {
+          await AsyncStorage.setItem('token', response.data.token);
+          await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+        }
 
         // Validation & Navigation Logic: changing according to the number of children
         if (!children || children.length === 0) {
@@ -34,9 +41,9 @@ export default function LoginScreen() {
           // 2 children or more -> navigate to child-selector screen
           router.replace({
             pathname: '/child-selector',
-            params: { 
+            params: {
               pName: name,
-              childrenList: JSON.stringify(children) 
+              childrenList: JSON.stringify(children)
             }
           });
         } else {
@@ -60,9 +67,9 @@ export default function LoginScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.logoContainer}>
-             <View style={styles.iconBox}>
-                <Ionicons name="heart" size={40} color="white" />
-             </View>
+            <View style={styles.iconBox}>
+              <Ionicons name="heart" size={40} color="white" />
+            </View>
           </View>
           <Text style={styles.headerText1}>MediKid</Text>
           <Text style={styles.headerText}>Welcome Back</Text>
@@ -70,21 +77,21 @@ export default function LoginScreen() {
 
           <View style={styles.inputSection}>
             <Text style={styles.label}>Email Address or Phone Number</Text>
-            <TextInput 
-              style={styles.input} 
-              placeholder="example@email.com or 077XXXXXXX" 
+            <TextInput
+              style={styles.input}
+              placeholder="example@email.com or 077XXXXXXX"
               value={identifier}
               onChangeText={setIdentifier}
-              keyboardType="default" 
+              keyboardType="default"
               autoCapitalize="none"
               autoCorrect={false}
             />
 
             <Text style={styles.label}>Password</Text>
             <View style={styles.passwordWrapper}>
-              <TextInput 
-                style={styles.passwordInput} 
-                placeholder="Enter your password" 
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Enter your password"
                 secureTextEntry={!passwordVisible}
                 value={password}
                 onChangeText={setPassword}

@@ -18,7 +18,7 @@ export default function SignupScreen() {
   const [otpCode, setOtpCode] = useState('');
   
   const router = useRouter();
-  const BACKEND_URL = 'http://10.49.217.230:5000/api/auth/register-parent';
+  const BACKEND_URL = 'http://172.22.74.230:5000/api/auth/register-parent';
 
   const handleSignup = async () => {
     

@@ -42,6 +42,8 @@ const Login = () => {
         navigate('/dashboard');
       } else if (userRole === 'midwife') {
         navigate('/midwife-dashboard'); 
+      } else if (userRole === 'doctor') {
+        navigate('/doctor-dashboard');
       } else {
         navigate('/dashboard');
       }

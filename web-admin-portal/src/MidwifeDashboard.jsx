@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
 import ChildRegistrationModal from './ChildRegistrationModal';
 import './Dashboard.css';
 
 const MidwifeDashboard = () => {
+    const navigate = useNavigate();
     const [children, setChildren] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [stats, setStats] = useState({ total: 0, vaccinations: 15, alerts: 3, clinics: 2 });
@@ -183,7 +185,7 @@ const MidwifeDashboard = () => {
                                         <td>
                                             <button 
                                                 className="btn-view" 
-                                                onClick={() => alert(`Redirecting to Full Health Profile of ${child.name || "this child"}...\nHere you can see Growth Charts, Vaccination Schedule & Clinical History.`)}
+                                                onClick={() => navigate(`/child-profile/${child._id}`)}
                                                 style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: '1.2em' }}
                                                 title="View Full Health Record"
                                             >

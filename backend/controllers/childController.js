@@ -55,8 +55,22 @@ const getChildren = async (req, res) => {
   }
 };
 
+// 3. Get child by ID
+const getChildById = async (req, res) => {
+  try {
+    const child = await Child.findById(req.params.id);
+    if (!child) {
+      return res.status(404).json({ msg: 'Child not found' });
+    }
+    res.status(200).json(child);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: 'Server Error' });
+  }
+};
 
 module.exports = { 
   registerChild, 
-  getChildren 
+  getChildren,
+  getChildById
 };
