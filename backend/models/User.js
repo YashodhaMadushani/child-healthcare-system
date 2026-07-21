@@ -13,6 +13,10 @@ const UserSchema = new mongoose.Schema({
   },
 
   assignedClinic: { type: String, default: "N/A" },
+  gender: { type: String, enum: ['Male', 'Female'], required: false },
+  age: { type: Number, required: false },
+  slmcRegNo: { type: String, required: false },
+  nicNo: { type: String, required: false },
   
   children: [{ 
     type: String, 

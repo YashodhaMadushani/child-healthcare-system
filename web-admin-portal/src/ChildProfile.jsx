@@ -124,7 +124,81 @@ export default function ChildProfile() {
     const fetchChild = async () => {
       try {
         const res = await axios.get(`http://localhost:5000/api/children/${id}`);
-        setChild(res.data);
+        const childData = res.data;
+        setChild(childData);
+
+        if (childData.growthRecords && childData.growthRecords.length > 0) {
+          const wLogs = childData.growthRecords.map(r => ({
+            month: r.ageInterval,
+            weight: r.weight,
+            p3: r.ageInterval === '0M' ? 2.4 : 8.8,
+            p15: r.ageInterval === '0M' ? 2.8 : 9.6,
+            p50: r.ageInterval === '0M' ? 3.3 : 10.4,
+            p85: r.ageInterval === '0M' ? 3.9 : 11.4,
+            p97: r.ageInterval === '0M' ? 4.3 : 12.2
+          }));
+          setWeightData(wLogs);
+
+          const hLogs = childData.growthRecords.map(r => ({
+            month: r.ageInterval,
+            height: r.height,
+            p3: r.ageInterval === '0M' ? 46.1 : 76.9,
+            p15: r.ageInterval === '0M' ? 48.0 : 79.5,
+            p50: r.ageInterval === '0M' ? 49.9 : 82.0,
+            p85: r.ageInterval === '0M' ? 51.8 : 84.5,
+            p97: r.ageInterval === '0M' ? 53.7 : 87.1
+          }));
+          setHeightData(hLogs);
+
+          const bLogs = childData.growthRecords.map(r => ({
+            month: r.ageInterval,
+            bmi: r.bmi,
+            p3: r.ageInterval === '0M' ? 11.1 : 13.1,
+            p15: r.ageInterval === '0M' ? 12.0 : 14.1,
+            p50: r.ageInterval === '0M' ? 13.0 : 15.1,
+            p85: r.ageInterval === '0M' ? 14.1 : 16.3,
+            p97: r.ageInterval === '0M' ? 15.1 : 17.5
+          }));
+          setBmiData(bLogs);
+        }
+
+        if (childData.vaccinations && childData.vaccinations.length > 0) {
+          setVaccines(childData.vaccinations);
+        }
+
+        if (childData.observations) {
+          setObservations(childData.observations);
+        }
+
+        // Dynamically build visits list
+        const visitList = [];
+        if (childData.growthRecords) {
+          childData.growthRecords.forEach(r => {
+            visitList.push({
+              date: new Date(r.date).toISOString().split('T')[0],
+              midwife: r.registeredBy || childData.registeredBy || 'Kamani Perera',
+              weight: r.weight,
+              height: r.height,
+              type: r.ageInterval === '0M' ? 'Routine' : 'Growth Check',
+              note: `Weight and height updates logged at ${r.ageInterval} interval.`
+            });
+          });
+        }
+        if (childData.vaccinations) {
+          childData.vaccinations.filter(v => v.status === 'Completed' && v.date).forEach(v => {
+            visitList.push({
+              date: v.date,
+              midwife: childData.registeredBy || 'Kamani Perera',
+              weight: childData.growthRecords?.[0]?.weight || childData.birthWeight,
+              height: childData.growthRecords?.[0]?.height || childData.birthHeight,
+              type: 'Vaccine',
+              note: `${v.name} immunization administered.`
+            });
+          });
+        }
+        visitList.sort((a, b) => new Date(b.date) - new Date(a.date));
+        setVisits(visitList.length > 0 ? visitList : INITIAL_VISITS);
+
       } catch (err) {
         console.error("Error loading child details:", err);
       } finally {
@@ -143,82 +217,64 @@ export default function ChildProfile() {
     window.location.reload();
   };
 
-  const handleSaveObservations = () => {
+  const handleSaveObservations = async () => {
     setIsObsSaving(true);
-    setTimeout(() => {
-      setIsObsSaving(false);
+    try {
+      await axios.post(`http://localhost:5000/api/children/${id}/observations`, { observations });
       alert("Midwife observations successfully updated in health ledger.");
-    }, 800);
+    } catch (err) {
+      console.error(err);
+      alert("Error saving observations to database.");
+    } finally {
+      setIsObsSaving(false);
+    }
   };
 
-  const handleAddMeasurement = (e) => {
+  const handleAddMeasurement = async (e) => {
     e.preventDefault();
     if (!newWeight || !newHeight) return;
 
     const w = parseFloat(newWeight);
-    const h = parseFloat(newHeight) / 100; // cm to m
+    const h = parseFloat(newHeight) / 100;
     const bmiVal = parseFloat((w / (h * h)).toFixed(1));
 
-    // Update Weight
-    setWeightData(prev => [
-      ...prev,
-      { month: newMonth, weight: w, p3: 9.0, p15: 9.8, p50: 10.8, p85: 11.8, p97: 12.6 }
-    ]);
+    try {
+      await axios.post(`http://localhost:5000/api/children/${id}/measurements`, {
+        ageInterval: newMonth,
+        weight: w,
+        height: parseFloat(newHeight),
+        bmi: bmiVal
+      });
 
-    // Update Height
-    setHeightData(prev => [
-      ...prev,
-      { month: newMonth, height: parseFloat(newHeight), p3: 78.0, p15: 80.5, p50: 83.2, p85: 86.0, p97: 88.5 }
-    ]);
-
-    // Update BMI
-    setBmiData(prev => [
-      ...prev,
-      { month: newMonth, bmi: bmiVal, p3: 13.0, p15: 14.0, p50: 15.0, p85: 16.2, p97: 17.3 }
-    ]);
-
-    // Log as clinic visit
-    const newVisit = {
-      date: new Date().toISOString().split('T')[0],
-      midwife: 'Kamani Perera',
-      weight: w,
-      height: parseFloat(newHeight),
-      type: 'Routine',
-      note: `New metrics logged during routine consultation. Calculated BMI: ${bmiVal}.`
-    };
-    setVisits([newVisit, ...visits]);
-
-    setIsMeasureModalOpen(false);
-    setNewWeight('');
-    setNewHeight('');
-    alert("New clinical measurements logged successfully.");
+      setIsMeasureModalOpen(false);
+      setNewWeight('');
+      setNewHeight('');
+      alert("New clinical measurements logged successfully.");
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Error saving measurements to database.");
+    }
   };
 
-  const handleAdministerVaccine = (e) => {
+  const handleAdministerVaccine = async (e) => {
     e.preventDefault();
     if (!selectedVaccineId) return;
 
-    setVaccines(prev => prev.map(vac => {
-      if (vac.id === parseInt(selectedVaccineId)) {
-        return { ...vac, status: "Completed", date: administeredDate };
-      }
-      return vac;
-    }));
+    try {
+      await axios.post(`http://localhost:5000/api/children/${id}/vaccinations`, {
+        vaccineName: selectedVaccineId,
+        status: "Completed",
+        date: administeredDate
+      });
 
-    // Add Vaccine Visit entry
-    const selectedVac = vaccines.find(v => v.id === parseInt(selectedVaccineId));
-    const newVisit = {
-      date: administeredDate,
-      midwife: 'Kamani Perera',
-      weight: weightData[weightData.length - 1].weight,
-      height: heightData[heightData.length - 1].height,
-      type: 'Vaccine',
-      note: `${selectedVac.name} vaccine administered successfully. Scheduled updates checked.`
-    };
-    setVisits([newVisit, ...visits]);
-
-    setIsVaccineModalOpen(false);
-    alert(`Immunization status updated successfully for ${selectedVac.name}.`);
+      setIsVaccineModalOpen(false);
+      alert(`Immunization status updated successfully.`);
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Error saving vaccine administration to database.");
+    }
   };
 
   if (loading) {
@@ -814,8 +870,8 @@ export default function ChildProfile() {
                     className="w-full text-xs bg-white border border-[#E2E8F0] rounded-xl p-3 appearance-none focus:outline-none focus:ring-2 focus:ring-[#1D61FF]"
                   >
                     <option value="">-- Select Due Vaccine --</option>
-                    {vaccines.filter(v => v.status !== 'Completed').map(v => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
+                    {vaccines.filter(v => v.status !== 'Completed').map((v, index) => (
+                      <option key={index} value={v.name}>{v.name}</option>
                     ))}
                   </select>
                   <ChevronDown size={14} className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" />

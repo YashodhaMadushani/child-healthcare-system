@@ -107,16 +107,22 @@ const Dashboard = () => {
                   <tr className="text-slate-400 text-sm uppercase tracking-wider border-b border-slate-50">
                     <th className="pb-4 font-semibold">Name</th>
                     <th className="pb-4 font-semibold">Role</th>
+                    <th className="pb-4 font-semibold">NIC & SLMC No</th>
+                    <th className="pb-4 font-semibold">Contact Phone</th>
                     <th className="pb-4 font-semibold">Assigned Clinic</th>
                     <th className="pb-4 font-semibold">Status</th>
-                    <th className="pb-4 font-semibold text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {staffData.length > 0 ? (
                     staffData.map((staff, index) => (
                       <tr key={index} className="group hover:bg-slate-50/50 transition-colors">
-                        <td className="py-5 font-bold text-slate-700">{staff.name}</td>
+                        <td className="py-5 font-bold text-slate-700">
+                          <div>{staff.name}</div>
+                          {staff.gender && staff.age && (
+                            <span className="text-[11px] text-slate-400 font-normal">{staff.gender}, {staff.age} yrs</span>
+                          )}
+                        </td>
                         <td className="py-5 text-slate-500 font-medium">
                           <span className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${
                             staff.role.toLowerCase() === 'doctor' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'
@@ -124,18 +130,20 @@ const Dashboard = () => {
                             {staff.role}
                           </span>
                         </td>
+                        <td className="py-5 text-xs text-slate-600">
+                          <div><span className="font-semibold text-slate-500">NIC:</span> {staff.nicNo || 'N/A'}</div>
+                          <div><span className="font-semibold text-slate-500">SLMC:</span> {staff.slmcRegNo || 'N/A'}</div>
+                        </td>
+                        <td className="py-5 text-sm text-slate-600">{staff.phone || 'N/A'}</td>
                         <td className="py-5 text-slate-500">{staff.assignedClinic || 'N/A'}</td>
                         <td className="py-5">
                           <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-wider border border-emerald-100">Active</span>
-                        </td>
-                        <td className="py-5 text-center">
-                          <button className="text-blue-500 font-bold hover:underline">Edit</button>
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="5" className="py-10 text-center text-slate-400 font-medium italic">No staff data available.</td>
+                      <td colSpan="6" className="py-10 text-center text-slate-400 font-medium italic">No staff data available.</td>
                     </tr>
                   )}
                 </tbody>

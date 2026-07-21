@@ -11,8 +11,8 @@ const isValidEmail = (email) => {
 
 // 1. Register Staff Member (Admin Panel)
 const registerStaff = async (req, res) => {
-  const { name, email, password, role, clinic } = req.body;
-  
+  const { name, email, password, role, clinic, phone, gender, age, slmcRegNo, nicNo } = req.body;
+
   try {
     // Validation: Required fields check
     if (!name || !email || !password || !role) {
@@ -34,10 +34,21 @@ const registerStaff = async (req, res) => {
     if (user) return res.status(400).json({ msg: 'This email is already in use.' });
 
     // store data
-    user = new User({ name, email, password, role: role.toLowerCase(), assignedClinic: clinic || "N/A" });
+    user = new User({ 
+      name, 
+      email, 
+      password, 
+      role: role.toLowerCase(), 
+      assignedClinic: clinic || "N/A",
+      phone: phone || undefined,
+      gender: gender || undefined,
+      age: age ? Number(age) : undefined,
+      slmcRegNo: slmcRegNo || undefined,
+      nicNo: nicNo || undefined
+    });
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(password, salt);
-    
+
     await user.save();
     res.status(201).json({ msg: 'Staff member registered successfully.' });
   } catch (err) {
@@ -49,7 +60,7 @@ const registerStaff = async (req, res) => {
 // 2. Register Parent (Mobile App Signup - Updated with OTP and Phone support)
 const registerParent = async (req, res) => {
   const { name, digitalHealthId, email, phone, password, otp, isOtpVerification } = req.body;
-  
+
   try {
     if (!name || !digitalHealthId || !password) {
       return res.status(400).json({ msg: 'Please enter all required fields.' });
@@ -88,9 +99,9 @@ const registerParent = async (req, res) => {
     }
 
     // Fetch all children with the same phone number (siblings)
-    
+
     const siblingChildren = await Child.find({ phone: phone || childExists.phone });
-    
+
     let childrenIds = [digitalHealthId];
     if (siblingChildren.length > 0) {
       childrenIds = siblingChildren.map(c => c.digitalHealthId);
@@ -111,13 +122,13 @@ const registerParent = async (req, res) => {
 
     // save the user to the database
     const savedUser = await user.save();
-    
+
     console.log("=========================================");
     console.log("🎯 USER SUCCESSFULLY SAVED TO DB:", savedUser);
     console.log("=========================================");
 
-    return res.status(201).json({ 
-      msg: 'Registration successful! You can now login.', 
+    return res.status(201).json({
+      msg: 'Registration successful! You can now login.',
       childName: childExists.name,
       linkedChildren: childrenIds
     });
@@ -130,7 +141,7 @@ const registerParent = async (req, res) => {
 // 3. common Login Function for both Staff and Parent
 const loginUser = async (req, res) => {
   const { identifier, password, role } = req.body;
-  
+
   try {
     // Validation: empty fields check
     if (!identifier || !password || !role) {
@@ -138,9 +149,9 @@ const loginUser = async (req, res) => {
     }
 
     // Validation: Check if the user exists with the provided identifier (email or phone) and role
-    const user = await User.findOne({ 
+    const user = await User.findOne({
       $or: [{ email: identifier }, { phone: identifier }],
-      role: role.toLowerCase() 
+      role: role.toLowerCase()
     });
 
     if (!user) return res.status(400).json({ msg: 'No user found with this credentials/role.' });
@@ -151,15 +162,18 @@ const loginUser = async (req, res) => {
 
     // JWT Token generation
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
-    
-    res.json({ 
-      token, 
-      user: { 
-        id: user._id, 
-        name: user.name, 
+
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
         role: user.role,
-        children: user.children 
-      } 
+        assignedClinic: user.assignedClinic,
+        children: user.children
+      }
     });
   } catch (err) {
     console.error(err.message);
@@ -180,8 +194,8 @@ const getStaff = async (req, res) => {
 
 // 5. Add Another Child to Parent's Account (using digitalHealthId)
 const addChildToParent = async (req, res) => {
-  const { userId, digitalHealthId } = req.body; 
-  
+  const { userId, digitalHealthId } = req.body;
+
   try {
     // Validation: empty fields check
     if (!userId || !digitalHealthId) {

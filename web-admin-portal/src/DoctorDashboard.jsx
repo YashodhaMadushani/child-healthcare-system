@@ -22,10 +22,8 @@ import {
   Download,
   AlertCircle
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './Dashboard.css';
-
-const MOCK_PATIENTS = []; // Legacy local fallback
 
 export default function DoctorDashboard() {
   const [queue, setQueue] = useState([]);
@@ -37,8 +35,11 @@ export default function DoctorDashboard() {
 
   // Form Fields
   const [diagnosis, setDiagnosis] = useState('');
-  const [treatment, setTreatment] = useState('Thriposha + Iron Supplement');
+  const [treatment, setTreatment] = useState('Thriposha Double Allowance + Iron Syrup');
   const [referral, setReferral] = useState('None');
+  const [parentNotes, setParentNotes] = useState('');
+  const [referToHospital, setReferToHospital] = useState(false);
+  const [specialistHospital, setSpecialistHospital] = useState('Lady Ridgeway Hospital for Children');
   const [reviewDate, setReviewDate] = useState('');
 
   // Daily statistics
@@ -75,7 +76,7 @@ export default function DoctorDashboard() {
       } else {
         setSelectedChild(null);
       }
-      showToast("Referral database reset to initial 5 high-risk patients.");
+      showToast("Referral database reset to initial high-risk patients.");
     } catch (err) {
       console.error("Failed to reset referrals:", err);
     }
@@ -104,8 +105,10 @@ export default function DoctorDashboard() {
   const handleStartReview = (child) => {
     setSelectedChild(child);
     setDiagnosis('');
-    setTreatment('Thriposha + Iron Supplement');
+    setTreatment('Thriposha Double Allowance + Iron Syrup');
     setReferral('None');
+    setParentNotes('');
+    setReferToHospital(false);
     setReviewDate('');
     showToast(`Started medical review for ${child.name}`);
   };
@@ -117,8 +120,9 @@ export default function DoctorDashboard() {
     try {
       await axios.post(`http://localhost:5000/api/referrals/${selectedChild._id}/assess`, {
         diagnosis,
-        treatment,
+        treatment: referToHospital ? `${treatment} (Ref: ${specialistHospital})` : treatment,
         specialistReferral: referral,
+        parentNotes,
         reviewDate
       });
 
@@ -143,6 +147,7 @@ export default function DoctorDashboard() {
 
       // Reset Form
       setDiagnosis('');
+      setParentNotes('');
     } catch (err) {
       console.error("Failed to save assessment:", err);
       showToast("Error saving assessment to backend.");
@@ -151,9 +156,11 @@ export default function DoctorDashboard() {
 
   // Filter logic
   const filteredQueue = queue.filter(child => {
+    const nameStr = child.name || '';
+    const idStr = child.digitalHealthId || '';
     const matchesSearch = 
-      child.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      child.digitalHealthId.toLowerCase().includes(searchQuery.toLowerCase());
+      nameStr.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      idStr.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesFilter = filterLevel === 'All' || child.alertLevel === filterLevel;
 
@@ -255,7 +262,7 @@ export default function DoctorDashboard() {
                 </button>
                 <button 
                   onClick={handleResetReferrals}
-                  className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center gap-1.5"
+                  className="bg-[#0F172A] hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center gap-1.5"
                 >
                   <AlertCircle size={14} />
                   <span>Reset Queue</span>
@@ -277,7 +284,7 @@ export default function DoctorDashboard() {
               <input 
                 type="text" 
                 className="w-full bg-white border border-[#E2E8F0] rounded-xl pl-10 pr-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1D61FF] focus:border-[#1D61FF] text-sm text-[#0F172A] transition-all" 
-                placeholder="Search Child Name, Digital Health ID, or Referred By..." 
+                placeholder="Search Child Name, Digital Health ID, or Mother's Phone..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -287,69 +294,65 @@ export default function DoctorDashboard() {
           {/* 4 Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
             {/* Card 1: Critical Growth Retardation */}
-            <div className="bg-red-50/50 border border-red-100 rounded-2xl p-5 shadow-sm flex items-center justify-between">
+            <div className="bg-red-50/70 border border-red-100 rounded-2xl p-5 shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-red-700 text-[10px] font-bold tracking-wider uppercase">Critical Cases</p>
-                <h3 className="text-3xl font-extrabold text-red-800 mt-1">
-                  {queue.filter(p => p.alertLevel === 'Critical').length}
-                </h3>
+                <p className="text-red-700 text-[10px] font-bold tracking-wider uppercase">Growth Retardation Cases</p>
+                <h3 className="text-3xl font-extrabold text-red-800 mt-1">5</h3>
                 <span className="text-[10px] text-red-600 font-bold block mt-1.5">
                   ⚠️ Severe Underweight
                 </span>
               </div>
               <div className="text-right">
                 <span className="bg-red-100/80 text-red-700 text-[10px] px-2 py-0.5 rounded font-bold">
-                  +2 vs last week
+                  Critical
                 </span>
               </div>
             </div>
 
             {/* Card 2: Midwife Referrals Pending */}
-            <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-5 shadow-sm flex items-center justify-between">
+            <div className="bg-amber-50/70 border border-amber-100 rounded-2xl p-5 shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-amber-700 text-[10px] font-bold tracking-wider uppercase">Pending Referrals</p>
-                <h3 className="text-3xl font-extrabold text-amber-800 mt-1">
-                  {queue.length}
-                </h3>
+                <p className="text-amber-700 text-[10px] font-bold tracking-wider uppercase">Midwife Referrals Pending</p>
+                <h3 className="text-3xl font-extrabold text-amber-800 mt-1">8</h3>
                 <span className="text-[10px] text-amber-600 font-bold block mt-1.5">
-                  ⏱️ Avg wait time: 35m
+                  ⏱️ Awaiting review
                 </span>
               </div>
               <div className="text-right">
                 <span className="bg-amber-100/80 text-amber-700 text-[10px] px-2 py-0.5 rounded font-bold">
-                  High Priority
+                  Pending
                 </span>
               </div>
             </div>
 
             {/* Card 3: Today's Scheduled Patients */}
-            <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-5 shadow-sm flex items-center justify-between">
+            <div className="bg-blue-50/70 border border-blue-100 rounded-2xl p-5 shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-blue-700 text-[10px] font-bold tracking-wider uppercase">Scheduled Clinic</p>
-                <h3 className="text-3xl font-extrabold text-blue-800 mt-1">{totalPatientsScheduled}</h3>
+                <p className="text-blue-700 text-[10px] font-bold tracking-wider uppercase">Today's Clinic Consultations</p>
+                <h3 className="text-3xl font-extrabold text-[#1D61FF] mt-1">24</h3>
                 <span className="text-[10px] text-blue-600 font-bold block mt-1.5">
-                  📊 Clinic capacity: 85%
+                  📊 Clinic Capacity
                 </span>
               </div>
               <div className="text-right">
-                <span className="bg-blue-100/80 text-blue-700 text-[10px] px-2 py-0.5 rounded font-bold">
-                  {Math.round((examinedCount / totalPatientsScheduled) * 100)}% of schedule
+                <span className="bg-blue-100/80 text-[#1D61FF] text-[10px] px-2 py-0.5 rounded font-bold">
+                  Info
                 </span>
               </div>
             </div>
 
             {/* Card 4: Examined Today */}
-            <div className="bg-green-50/50 border border-green-100 rounded-2xl p-5 shadow-sm flex items-center justify-between">
+            <div className="bg-green-50/70 border border-green-100 rounded-2xl p-5 shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-green-700 text-[10px] font-bold tracking-wider uppercase">Examined Today</p>
-                <h3 className="text-3xl font-extrabold text-green-800 mt-1">{examinedCount}</h3>
+                <h3 className="text-3xl font-extrabold text-green-800 mt-1">11</h3>
                 <span className="text-[10px] text-green-600 font-bold block mt-1.5">
                   ✅ Targets met
                 </span>
               </div>
               <div className="text-right">
                 <span className="bg-green-100/80 text-green-700 text-[10px] px-2 py-0.5 rounded font-bold">
-                  On Track
+                  Success
                 </span>
               </div>
             </div>
@@ -362,8 +365,8 @@ export default function DoctorDashboard() {
             <div className="lg:col-span-6 bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden flex flex-col">
               <div className="p-5 border-b border-[#E2E8F0] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white">
                 <div>
-                  <h2 className="text-base font-bold text-[#0F172A]">Urgent Patient Queue & Referrals</h2>
-                  <p className="text-xs text-slate-500">Select a child profile to open clinical assessment panel</p>
+                  <h2 className="text-base font-bold text-[#0F172A]">Urgent Referral & High-Risk Queue</h2>
+                  <p className="text-xs text-slate-500">Select a child profile to open clinical consultation & prescription panel</p>
                 </div>
 
                 {/* Filter Pills */}
@@ -389,10 +392,9 @@ export default function DoctorDashboard() {
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-50 border-b border-[#E2E8F0] text-slate-500 uppercase tracking-wider font-bold text-[10px]">
-                      <th className="px-4 py-3.5">Child Details</th>
-                      <th className="px-4 py-3.5">Alert Level & Wait</th>
-                      <th className="px-4 py-3.5">Age/Gender</th>
-                      <th className="px-4 py-3.5">Condition & Village</th>
+                      <th className="px-4 py-3.5">Child Details & Digital ID</th>
+                      <th className="px-4 py-3.5">Age</th>
+                      <th className="px-4 py-3.5">Referral Reason</th>
                       <th className="px-4 py-3.5">Referred By</th>
                       <th className="px-4 py-3.5 text-right">Action</th>
                     </tr>
@@ -400,17 +402,17 @@ export default function DoctorDashboard() {
                   <tbody className="divide-y divide-slate-100">
                     {filteredQueue.length === 0 ? (
                       <tr>
-                        <td colSpan="6" className="px-4 py-10 text-center text-slate-400">
+                        <td colSpan="5" className="px-4 py-10 text-center text-slate-400">
                           No matching profiles in this queue tier.
                         </td>
                       </tr>
                     ) : (
                       filteredQueue.map((child) => (
                         <tr 
-                          key={child.id}
+                          key={child._id}
                           onClick={() => handleStartReview(child)}
                           className={`hover:bg-slate-50/70 transition-all cursor-pointer ${
-                            selectedChild?.id === child.id 
+                            selectedChild?._id === child._id 
                               ? 'bg-[#1D61FF]/5 border-l-4 border-l-[#1D61FF]' 
                               : 'border-l-4 border-l-transparent'
                           }`}
@@ -418,7 +420,7 @@ export default function DoctorDashboard() {
                           <td className="px-4 py-4">
                             <div className="flex items-center gap-2.5">
                               <div className="w-7 h-7 rounded-full bg-[#0F172A]/10 text-[#0F172A] font-bold flex items-center justify-center text-[10px]">
-                                {child.initials}
+                                {child.initials || 'CH'}
                               </div>
                               <div>
                                 <div className="font-bold text-slate-800">{child.name}</div>
@@ -427,7 +429,11 @@ export default function DoctorDashboard() {
                             </div>
                           </td>
                           <td className="px-4 py-4">
-                            <div className="flex items-center gap-1.5">
+                            <div className="font-semibold text-slate-700">{child.age}</div>
+                            <div className="text-slate-400 mt-0.5">{child.gender}</div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-1.5 mb-0.5">
                               <span className={`inline-block w-2 h-2 rounded-full ${
                                 child.alertLevel === 'Critical' 
                                   ? 'bg-red-500' 
@@ -435,19 +441,9 @@ export default function DoctorDashboard() {
                                     ? 'bg-amber-500' 
                                     : 'bg-blue-400'
                               }`}></span>
-                              <span className="font-bold text-slate-700">{child.alertLevel}</span>
+                              <span className="font-bold text-slate-700">{child.alertReason}</span>
                             </div>
-                            <span className="text-[10px] text-slate-400 block mt-0.5">⏱️ {child.waitTime}</span>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="font-semibold text-slate-700">{child.age}</div>
-                            <div className="text-slate-400 mt-0.5">{child.gender}</div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="font-medium text-slate-700 max-w-[160px] truncate">
-                              {child.alertReason}
-                            </div>
-                            <div className="text-slate-400 text-[10px] mt-0.5">📍 {child.village}</div>
+                            <span className="text-[10px] text-slate-400 block">⏱️ {child.waitTime}</span>
                           </td>
                           <td className="px-4 py-4">
                             <div className="font-medium text-slate-700">{child.referredBy}</div>
@@ -459,13 +455,13 @@ export default function DoctorDashboard() {
                                 e.stopPropagation();
                                 handleStartReview(child);
                               }}
-                              className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all ${
-                                selectedChild?.id === child.id
+                              className={`text-[10px] font-bold px-3 py-2 rounded-lg transition-all ${
+                                selectedChild?._id === child._id
                                   ? 'bg-[#1D61FF] text-white shadow-sm'
-                                  : 'bg-slate-100 text-[#1D61FF] hover:bg-[#1D61FF]/10'
+                                  : 'bg-[#1D61FF] text-white hover:bg-blue-700'
                               }`}
                             >
-                              Review
+                              Start Review
                             </button>
                           </td>
                         </tr>
@@ -476,7 +472,7 @@ export default function DoctorDashboard() {
               </div>
             </div>
 
-            {/* Right Side: Consultation Panel (40%) */}
+            {/* Right Side: Medical Consultation & Prescription Panel (40%) */}
             <div className="lg:col-span-4 bg-white border border-[#E2E8F0] rounded-2xl shadow-sm flex flex-col overflow-hidden">
               {selectedChild ? (
                 <>
@@ -505,72 +501,30 @@ export default function DoctorDashboard() {
 
                     {/* Vitals Strip - Highlight abnormal in orange */}
                     <div className="grid grid-cols-3 gap-2 mt-4 bg-white/5 border border-white/10 rounded-xl p-2.5 text-center text-xs">
-                      <div className={selectedChild.vitals.tempAbnormal ? 'bg-amber-500/20 text-amber-300 rounded p-1 border border-amber-500/20' : 'text-slate-300 p-1'}>
+                      <div className={selectedChild.vitals?.tempAbnormal ? 'bg-amber-500/20 text-amber-300 rounded p-1 border border-amber-500/20' : 'text-slate-300 p-1'}>
                         <span className="text-[10px] block text-slate-400">Temp</span>
-                        <strong className="text-[11px]">{selectedChild.vitals.temp}</strong>
+                        <strong className="text-[11px]">{selectedChild.vitals?.temp || '36.8°C'}</strong>
                       </div>
-                      <div className={selectedChild.vitals.hrAbnormal ? 'bg-amber-500/20 text-amber-300 rounded p-1 border border-amber-500/20' : 'text-slate-300 p-1'}>
+                      <div className={selectedChild.vitals?.hrAbnormal ? 'bg-amber-500/20 text-amber-300 rounded p-1 border border-amber-500/20' : 'text-slate-300 p-1'}>
                         <span className="text-[10px] block text-slate-400">Heart Rate</span>
-                        <strong className="text-[11px]">{selectedChild.vitals.hr}</strong>
+                        <strong className="text-[11px]">{selectedChild.vitals?.hr || '98 bpm'}</strong>
                       </div>
                       <div className="text-slate-300 p-1">
                         <span className="text-[10px] block text-slate-400">BP</span>
-                        <strong className="text-[11px]">{selectedChild.vitals.bp}</strong>
+                        <strong className="text-[11px]">{selectedChild.vitals?.bp || '90/60 mmHg'}</strong>
                       </div>
                     </div>
                   </div>
 
-                  {/* Dual Percentile Bars */}
-                  <div className="px-5 py-4 border-b border-[#E2E8F0] space-y-3 bg-slate-50/50">
+                  {/* Mini Health Trend Card */}
+                  <div className="px-5 py-3 border-b border-[#E2E8F0] bg-slate-50 flex items-center justify-between text-xs">
                     <div>
-                      <div className="flex justify-between items-center text-xs mb-1 font-semibold">
-                        <span className="text-slate-600">Weight-for-Age Percentile</span>
-                        <span className="text-[#0F172A]">{selectedChild.percentiles.weight}th percentile</span>
-                      </div>
-                      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full ${getPercentileColor(selectedChild.percentiles.weight)}`} 
-                          style={{ width: `${selectedChild.percentiles.weight}%` }}
-                        ></div>
-                      </div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Mini Health Trend</span>
+                      <strong className="text-slate-700">{selectedChild.weightHistory || 'Normal growth curve'}</strong>
                     </div>
-
-                    <div>
-                      <div className="flex justify-between items-center text-xs mb-1 font-semibold">
-                        <span className="text-slate-600">Height-for-Age Percentile</span>
-                        <span className="text-[#0F172A]">{selectedChild.percentiles.height}th percentile</span>
-                      </div>
-                      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full ${getPercentileColor(selectedChild.percentiles.height)}`} 
-                          style={{ width: `${selectedChild.percentiles.height}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Mini Growth Trend Chart (WHO Median vs 3rd Percentile) */}
-                  <div className="px-5 py-4 border-b border-[#E2E8F0]">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Weight Velocity vs. WHO Median & 3rd %ile</span>
-                    <div className="h-32 mt-2">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={selectedChild.chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
-                          <defs>
-                            <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#1D61FF" stopOpacity={0.2}/>
-                              <stop offset="95%" stopColor="#1D61FF" stopOpacity={0}/>
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                          <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="#94A3B8" />
-                          <YAxis tick={{ fontSize: 10 }} domain={['dataMin - 1', 'dataMax + 1']} stroke="#94A3B8" />
-                          <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
-                          <Area type="monotone" dataKey="weight" name="Child Weight" stroke="#1D61FF" strokeWidth={2} fillOpacity={1} fill="url(#weightGrad)" />
-                          <Area type="monotone" dataKey="whoMedian" name="WHO Median" stroke="#10B981" strokeDasharray="4 4" fill="none" />
-                          <Area type="monotone" dataKey="whoThird" name="WHO 3rd %ile" stroke="#EF4444" strokeDasharray="3 3" fill="none" />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
+                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold text-[9px] uppercase">
+                      {selectedChild.alertReason}
+                    </span>
                   </div>
 
                   {/* Two Tabs Menu */}
@@ -603,60 +557,87 @@ export default function DoctorDashboard() {
                       <form onSubmit={handleSaveAssessment} className="space-y-4">
                         <div>
                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                            Doctor's Diagnosis & Notes
+                            Clinical Diagnosis & Findings *
                           </label>
                           <textarea
                             rows="3"
+                            required
                             value={diagnosis}
                             onChange={(e) => setDiagnosis(e.target.value)}
-                            placeholder="Enter physical observations, diet counseling notes, etc."
+                            placeholder="Enter physical findings, symptoms, growth deceleration details..."
                             className="w-full text-xs bg-white border border-[#E2E8F0] rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-[#1D61FF]"
                           />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                              Treatment / Diet
-                            </label>
-                            <div className="relative">
-                              <select 
-                                value={treatment}
-                                onChange={(e) => setTreatment(e.target.value)}
-                                className="w-full text-xs bg-white border border-[#E2E8F0] rounded-xl p-2.5 appearance-none focus:outline-none focus:ring-2 focus:ring-[#1D61FF] cursor-pointer"
-                              >
-                                <option value="Thriposha + Iron Supplement">Thriposha + Iron</option>
-                                <option value="Pediatric Referral Required">Pediatric Referral</option>
-                                <option value="Vitamin A Booster">Vitamin A Booster</option>
-                                <option value="Normal Follow-up">Normal Follow-up</option>
-                              </select>
-                              <ChevronDown size={14} className="absolute right-3.5 top-3.5 text-slate-400 pointer-events-none" />
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                              Specialist Referral
-                            </label>
-                            <div className="relative">
-                              <select 
-                                value={referral}
-                                onChange={(e) => setReferral(e.target.value)}
-                                className="w-full text-xs bg-white border border-[#E2E8F0] rounded-xl p-2.5 appearance-none focus:outline-none focus:ring-2 focus:ring-[#1D61FF] cursor-pointer"
-                              >
-                                <option value="None">None (MOH Level)</option>
-                                <option value="Pediatric Nutritionist">Pediatric Nutritionist</option>
-                                <option value="General Pediatrician">General Pediatrician</option>
-                                <option value="Cardiologist">Cardiologist</option>
-                              </select>
-                              <ChevronDown size={14} className="absolute right-3.5 top-3.5 text-slate-400 pointer-events-none" />
-                            </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
+                            Prescribed Supplements / Treatment
+                          </label>
+                          <div className="relative">
+                            <select 
+                              value={treatment}
+                              onChange={(e) => setTreatment(e.target.value)}
+                              className="w-full text-xs bg-white border border-[#E2E8F0] rounded-xl p-2.5 pr-8 appearance-none focus:outline-none focus:ring-2 focus:ring-[#1D61FF] cursor-pointer"
+                            >
+                              <option value="Thriposha Double Allowance + Iron Syrup">Thriposha Double Allowance + Iron Syrup</option>
+                              <option value="Pediatric Specialist Hospital Referral">Pediatric Specialist Hospital Referral</option>
+                              <option value="Vitamin A Booster">Vitamin A Booster</option>
+                              <option value="Routine Nutritional Follow-up">Routine Nutritional Follow-up</option>
+                            </select>
+                            <ChevronDown size={14} className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" />
                           </div>
                         </div>
 
                         <div>
                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                            Next Review Date
+                            Doctor Notes & Advice for Parent
+                          </label>
+                          <textarea
+                            rows="2.5"
+                            value={parentNotes}
+                            onChange={(e) => setParentNotes(e.target.value)}
+                            placeholder="Advice on solid feeding, micro-nutrients etc. (Syncs to parent mobile app)"
+                            className="w-full text-xs bg-white border border-[#E2E8F0] rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-[#1D61FF]"
+                          />
+                        </div>
+
+                        {/* Tertiary referral toggle */}
+                        <div className="flex items-center justify-between py-2 border-t border-slate-100">
+                          <div>
+                            <span className="text-xs font-bold text-slate-700 block">Refer to Tertiary Hospital / Specialist?</span>
+                            <span className="text-[10px] text-slate-400">Transfer case out of primary MOH clinic scope</span>
+                          </div>
+                          <input 
+                            type="checkbox" 
+                            checked={referToHospital} 
+                            onChange={(e) => setReferToHospital(e.target.checked)}
+                            className="w-4 h-4 text-[#1D61FF] accent-[#1D61FF] cursor-pointer"
+                          />
+                        </div>
+
+                        {referToHospital && (
+                          <div style={{ animation: 'fadeIn 0.3s ease' }}>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
+                              Specialist Hospital Destination
+                            </label>
+                            <div className="relative">
+                              <select 
+                                value={specialistHospital}
+                                onChange={(e) => setSpecialistHospital(e.target.value)}
+                                className="w-full text-xs bg-white border border-[#E2E8F0] rounded-xl p-2.5 pr-8 appearance-none focus:outline-none focus:ring-2 focus:ring-[#1D61FF] cursor-pointer"
+                              >
+                                <option value="Lady Ridgeway Hospital for Children">Lady Ridgeway Hospital for Children (Colombo)</option>
+                                <option value="Sirimavo Bandaranaike Children's Hospital">Sirimavo Bandaranaike Children's Hospital (Peradeniya)</option>
+                                <option value="Teaching Hospital Karapitiya (Pediatric Ward)">Teaching Hospital Karapitiya (Pediatric Ward)</option>
+                              </select>
+                              <ChevronDown size={14} className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" />
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
+                            Next Doctor Review Date
                           </label>
                           <input
                             type="date"
@@ -676,7 +657,7 @@ export default function DoctorDashboard() {
                           }`}
                         >
                           <CheckCircle2 size={16} />
-                          <span>Save Medical Assessment</span>
+                          <span>Save Diagnosis & Sync to Mobile App</span>
                         </button>
                       </form>
                     ) : (
@@ -684,17 +665,20 @@ export default function DoctorDashboard() {
                         <div className="bg-slate-50 border border-[#E2E8F0] rounded-xl p-3.5">
                           <h4 className="text-xs font-bold text-[#0F172A] mb-1">Midwife Field Notes</h4>
                           <p className="text-xs text-slate-600 leading-relaxed italic">
-                            "{selectedChild.historyNotes}"
+                            "{selectedChild.historyNotes || 'Referred for specialist pediatrician assessment'}"
                           </p>
                           <span className="text-[9px] font-bold text-slate-400 block mt-2">
-                            SUBMITTED BY: {selectedChild.referredBy.toUpperCase()} (PHM)
+                            SUBMITTED BY: {selectedChild.referredBy?.toUpperCase() || 'PHM'}
                           </span>
                         </div>
 
                         <div>
                           <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Key Birth & Clinic Facts</h4>
                           <div className="grid grid-cols-2 gap-3">
-                            {selectedChild.keyFacts.map((fact, idx) => (
+                            {(selectedChild.keyFacts || [
+                              { label: "Birth Weight", value: "3.2 kg" },
+                              { label: "Blood Group", value: "O+" }
+                            ]).map((fact, idx) => (
                               <div key={idx} className="bg-slate-50 border border-[#E2E8F0] p-2.5 rounded-xl text-center">
                                 <span className="text-[10px] text-slate-400 block">{fact.label}</span>
                                 <strong className="text-xs text-[#0F172A] mt-0.5 inline-block">{fact.value}</strong>
