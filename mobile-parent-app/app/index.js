@@ -100,6 +100,10 @@ export default function LoginScreen() {
                 <Ionicons name={passwordVisible ? "eye-off" : "eye"} size={20} color="#999" />
               </TouchableOpacity>
             </View>
+
+            <TouchableOpacity onPress={() => router.navigate('/forgot-password')} style={styles.forgotPasswordContainer}>
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity style={styles.signInButton} onPress={handleLogin}>
@@ -128,9 +132,11 @@ const styles = StyleSheet.create({
   subText: { fontSize: 16, color: '#666', marginTop: 8, marginBottom: 30 },
   label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8 },
   input: { height: 55, borderWidth: 1, borderColor: '#e1e1e1', borderRadius: 12, paddingHorizontal: 15, fontSize: 16, marginBottom: 20 },
-  passwordWrapper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#e1e1e1', borderRadius: 12, paddingHorizontal: 15, height: 55, marginBottom: 10 },
+  passwordWrapper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#e1e1e1', borderRadius: 12, paddingHorizontal: 15, height: 55, marginBottom: 5 },
   passwordInput: { flex: 1, fontSize: 16 },
-  signInButton: { backgroundColor: '#007bff', height: 55, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 30 },
+  forgotPasswordContainer: { alignSelf: 'flex-end', marginTop: 8 },
+  forgotPasswordText: { color: '#007bff', fontWeight: '600', fontSize: 14 },
+  signInButton: { backgroundColor: '#007bff', height: 55, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 20 },
   signInButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
   footerRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 30 },
   footerText: { color: '#666' },

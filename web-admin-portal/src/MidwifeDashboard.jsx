@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
+import { Html5Qrcode } from 'html5-qrcode';
 import {
     User,
     Calendar,
@@ -81,6 +82,63 @@ const MidwifeDashboard = () => {
     useEffect(() => {
         fetchChildren();
     }, []);
+
+    // QR Scanner Effect
+    useEffect(() => {
+        if (!isScanQRModalOpen) return;
+
+        let html5QrCode = new Html5Qrcode("qr-reader");
+        let isStopped = false;
+
+        const startScanning = async () => {
+            try {
+                await html5QrCode.start(
+                    { facingMode: "environment" },
+                    {
+                        fps: 10,
+                        qrbox: { width: 220, height: 220 }
+                    },
+                    (decodedText) => {
+                        if (isStopped) return;
+
+                        const healthId = decodedText.trim();
+                        const target = children.find(c => c.digitalHealthId && c.digitalHealthId.toLowerCase() === healthId.toLowerCase());
+
+                        if (target) {
+                            isStopped = true;
+                            html5QrCode.stop().then(() => {
+                                html5QrCode.clear();
+                                setClinicVisitChild(target);
+                                setIsScanQRModalOpen(false);
+                                setIsClinicVisitModalOpen(true);
+                            }).catch(err => console.error("Failed to stop scanner after match:", err));
+                        } else {
+                            console.log(`Scanned unknown ID: ${healthId}`);
+                        }
+                    },
+                    (errorMessage) => {
+                        // Ignore standard scanning errors
+                    }
+                );
+            } catch (err) {
+                console.error("Unable to start QR scanner:", err);
+            }
+        };
+
+        const timer = setTimeout(() => {
+            startScanning();
+        }, 150);
+
+        return () => {
+            clearTimeout(timer);
+            isStopped = true;
+            if (html5QrCode && html5QrCode.isScanning) {
+                html5QrCode.stop().then(() => {
+                    html5QrCode.clear();
+                }).catch(err => console.error("Failed to stop scanner on cleanup:", err));
+            }
+        };
+    }, [isScanQRModalOpen, children]);
 
     // Print QR
     const handlePrintQR = () => {
@@ -698,11 +756,9 @@ const MidwifeDashboard = () => {
                             Position the child's Digital Health Card QR code in front of your camera or enter the Digital Health ID manually.
                         </p>
 
-                        <div style={{ background: '#0F172A', borderRadius: '12px', padding: '30px 20px', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', overflow: 'hidden', minHeight: '180px', justifyContent: 'center' }}>
-                            <div style={{ border: '2px dashed #1D61FF', padding: '20px', borderRadius: '12px', background: 'rgba(29, 97, 255, 0.1)', animation: 'pulse 2s infinite' }}>
-                                <QrCode size={64} color="#1D61FF" />
-                            </div>
-                            <span style={{ fontSize: '0.8rem', color: '#94A3B8', marginTop: '12px' }}>Camera Active - Ready to scan...</span>
+                        <div style={{ background: '#0F172A', borderRadius: '12px', padding: '15px', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', overflow: 'hidden', minHeight: '260px', justifyContent: 'center' }}>
+                            <div id="qr-reader" style={{ width: '100%', maxWidth: '280px', borderRadius: '8px', overflow: 'hidden' }}></div>
+                            <span style={{ fontSize: '0.8rem', color: '#94A3B8', marginTop: '12px' }}>Align QR code inside the frame</span>
                         </div>
 
                         <div style={{ margin: '20px 0 10px 0', textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 'bold', color: '#94A3B8', letterSpacing: '1px' }}>
@@ -768,7 +824,7 @@ const MidwifeDashboard = () => {
                 </div>
             )}
             {/* Clinic Visit Modal */}
-            <ClinicVisitModal 
+            <ClinicVisitModal
                 isOpen={isClinicVisitModalOpen}
                 onClose={() => { setIsClinicVisitModalOpen(false); setClinicVisitChild(null); }}
                 child={clinicVisitChild}

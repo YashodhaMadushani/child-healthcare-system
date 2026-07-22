@@ -14,9 +14,9 @@ const childRoutes = require('./routes/childRoutes');
 const authRoutes = require('./routes/authRoutes');
 const referralRoutes = require('./routes/referralRoutes');
 
-app.use('/api/children', childRoutes); // Child Management වැඩ ටික
-app.use('/api/auth', authRoutes);     // Authentication සහ Staff වැඩ ටික
-app.use('/api/referrals', referralRoutes); // Doctor Referrals සහ Assessments වැඩ ටික
+app.use('/api/children', childRoutes); // Child Management
+app.use('/api/auth', authRoutes);     // Authentication and Staff Management
+app.use('/api/referrals', referralRoutes); // Doctor Referrals and Assessments
  
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)

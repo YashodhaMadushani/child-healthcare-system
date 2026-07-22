@@ -226,4 +226,68 @@ const addChildToParent = async (req, res) => {
   }
 };
 
-module.exports = { registerStaff, registerParent, loginUser, getStaff, addChildToParent };
+// 6. Request Password Reset OTP
+const forgotPassword = async (req, res) => {
+  const { identifier } = req.body;
+
+  try {
+    if (!identifier) {
+      return res.status(400).json({ msg: 'Please enter your email or phone number.' });
+    }
+
+    const user = await User.findOne({
+      $or: [{ email: identifier }, { phone: identifier }],
+      role: 'parent'
+    });
+
+    if (!user) {
+      return res.status(404).json({ msg: 'No parent account found with this email or phone number.' });
+    }
+
+    // Mock OTP dispatch
+    console.log(`ℹ️ OTP request for password reset. Sending code '1234' to: ${identifier}`);
+    return res.status(200).json({ msg: 'OTP code sent successfully!', otpRequired: true });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+};
+
+// 7. Reset Password with OTP
+const resetPassword = async (req, res) => {
+  const { identifier, otp, newPassword } = req.body;
+
+  try {
+    if (!identifier || !otp || !newPassword) {
+      return res.status(400).json({ msg: 'Please provide all fields.' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ msg: 'Password must be at least 6 characters long.' });
+    }
+
+    if (otp !== '1234') {
+      return res.status(400).json({ msg: 'Invalid OTP code. Please try again.' });
+    }
+
+    const user = await User.findOne({
+      $or: [{ email: identifier }, { phone: identifier }],
+      role: 'parent'
+    });
+
+    if (!user) {
+      return res.status(404).json({ msg: 'Parent account not found.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    return res.status(200).json({ msg: 'Password reset successful! You can now log in.' });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+};
+
+module.exports = { registerStaff, registerParent, loginUser, getStaff, addChildToParent, forgotPassword, resetPassword };
