@@ -62,21 +62,41 @@ const ClinicVisitModal = ({ isOpen, onClose, child, refreshData, midwifeName }) 
     }
   }, [child, isOpen]);
 
-  // Real-time growth risk calculation
+  // Real-time growth risk calculation using WHO-based weight-for-age estimation
   useEffect(() => {
     const w = parseFloat(weight);
-    if (!w || isNaN(w)) {
+    if (!w || isNaN(w) || !child) {
       setGrowthStatus('Normal Growth');
       return;
     }
-    if (w < 6.5) {
+
+    // Calculate age in months dynamically
+    const dob = new Date(child.dob);
+    const today = new Date();
+    let months = (today.getFullYear() - dob.getFullYear()) * 12;
+    months -= dob.getMonth();
+    months += today.getMonth();
+    const ageMonths = Math.max(0, months);
+
+    // Approximate WHO weight thresholds (3rd and 15th percentiles)
+    let p3 = 2.5 + (ageMonths * 0.35);
+    let p15 = 2.9 + (ageMonths * 0.4);
+
+    // Adjust for female infants who generally weigh slightly less
+    const isGirl = child.gender && (child.gender.toLowerCase() === 'girl' || child.gender.toLowerCase() === 'female');
+    if (isGirl) {
+      p3 -= 0.3;
+      p15 -= 0.3;
+    }
+
+    if (w < p3) {
       setGrowthStatus('Severe Underweight Alert');
-    } else if (w < 8.5) {
+    } else if (w < p15) {
       setGrowthStatus('Moderate Risk');
     } else {
       setGrowthStatus('Normal Growth');
     }
-  }, [weight]);
+  }, [weight, child]);
 
   if (!isOpen || !child) return null;
 

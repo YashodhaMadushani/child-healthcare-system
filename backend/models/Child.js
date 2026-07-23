@@ -57,7 +57,9 @@ const ChildSchema = new mongoose.Schema({
       status: { type: String, default: 'Upcoming' }, // Completed, Due, Upcoming
       date: { type: String }
     }
-  ]
+  ],
+  nextClinicDate: { type: Date },
+  nextDueVaccineDate: { type: Date }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Child', ChildSchema);

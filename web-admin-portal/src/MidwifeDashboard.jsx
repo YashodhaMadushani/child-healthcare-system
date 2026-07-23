@@ -63,20 +63,167 @@ const MidwifeDashboard = () => {
     const fetchChildren = async () => {
         try {
             const res = await axios.get('http://localhost:5000/api/children');
-            setChildren(res.data);
+            const data = res.data;
+            setChildren(data);
 
             // Calculate dynamic stats
-            const total = res.data.length;
-            // Simulated alerts and vaccinations count
-            setStats(prev => ({
-                ...prev,
+            const total = data.length;
+            let alertsCount = 0;
+            let vaccinationsCount = 0;
+            let clinicsCount = 0;
+
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            data.forEach(child => {
+                // 1. Growth Alert check
+                const records = child.growthRecords || [];
+                let hasGrowthAlert = false;
+                if (records.length > 0) {
+                    const latest = records[records.length - 1];
+                    if (latest.weight < 8.5) {
+                        hasGrowthAlert = true;
+                    }
+                    if (records.length >= 2) {
+                        const prev = records[records.length - 2];
+                        if (latest.weight < prev.weight) {
+                            hasGrowthAlert = true;
+                        }
+                    }
+                }
+                if (hasGrowthAlert) {
+                    alertsCount++;
+                }
+
+                // 2. Vaccinations Due check
+                const dueVaccines = (child.vaccinations || []).filter(v => v.status === 'Due');
+                vaccinationsCount += dueVaccines.length;
+
+                // 3. Upcoming Clinics check
+                if (child.nextClinicDate) {
+                    const clinicDateStr = new Date(child.nextClinicDate).toISOString().split('T')[0];
+                    if (clinicDateStr >= todayStr) {
+                        clinicsCount++;
+                    }
+                }
+            });
+
+            setStats({
                 total,
-                alerts: total > 2 ? 3 : 1,
-                vaccinations: total > 3 ? 12 : 5
-            }));
+                vaccinations: vaccinationsCount,
+                alerts: alertsCount,
+                clinics: clinicsCount
+            });
         } catch (err) {
             console.error("Error fetching children:", err);
         }
+    };
+
+    const getGrowthAlerts = () => {
+        const list = [];
+        children.forEach(child => {
+            const records = child.growthRecords || [];
+            if (records.length > 0) {
+                const latest = records[records.length - 1];
+                let isAlert = false;
+                let alertStatus = '';
+                let velocity = 'N/A';
+
+                if (latest.weight < 6.5) {
+                    isAlert = true;
+                    alertStatus = 'Critical';
+                    velocity = `Weight is very low: ${latest.weight}kg`;
+                } else if (latest.weight < 8.5) {
+                    isAlert = true;
+                    alertStatus = 'Moderate Underweight';
+                    velocity = `Weight: ${latest.weight}kg`;
+                }
+
+                if (records.length >= 2) {
+                    const prev = records[records.length - 2];
+                    if (latest.weight < prev.weight) {
+                        isAlert = true;
+                        alertStatus = latest.weight < prev.weight * 0.95 ? 'Critical' : 'High Alert';
+                        const diff = (latest.weight - prev.weight).toFixed(2);
+                        velocity = `${prev.weight}kg → ${latest.weight}kg (${diff}kg)`;
+                    }
+                }
+
+                if (isAlert) {
+                    const birthDate = new Date(child.dob);
+                    const diffMs = Date.now() - birthDate.getTime();
+                    const ageMonths = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 30.4375));
+
+                    list.push({
+                        _id: child._id,
+                        name: child.name,
+                        digitalHealthId: child.digitalHealthId,
+                        age: `${ageMonths} Months`,
+                        status: alertStatus,
+                        velocity,
+                        registeredBy: child.registeredBy || 'MOH Midwife'
+                    });
+                }
+            }
+        });
+        return list;
+    };
+
+    const getGrowthStats = () => {
+        let critical = 0;
+        let moderate = 0;
+        let healthy = 0;
+
+        children.forEach(child => {
+            const records = child.growthRecords || [];
+            if (records.length > 0) {
+                const latest = records[records.length - 1];
+                let isCritical = latest.weight < 6.5;
+                let isModerate = latest.weight >= 6.5 && latest.weight < 8.5;
+
+                if (records.length >= 2) {
+                    const prev = records[records.length - 2];
+                    if (latest.weight < prev.weight) {
+                        if (latest.weight < prev.weight * 0.95) {
+                            isCritical = true;
+                        } else {
+                            isModerate = true;
+                        }
+                    }
+                }
+
+                if (isCritical) {
+                    critical++;
+                } else if (isModerate) {
+                    moderate++;
+                } else {
+                    healthy++;
+                }
+            } else {
+                healthy++;
+            }
+        });
+
+        return { critical, moderate, healthy };
+    };
+
+    const getVaccinationAlerts = () => {
+        const alerts = [];
+        children.forEach(child => {
+            const dueVaccines = (child.vaccinations || []).filter(v => v.status === 'Due');
+            dueVaccines.forEach(v => {
+                alerts.push({
+                    _id: child._id,
+                    name: child.name,
+                    digitalHealthId: child.digitalHealthId,
+                    vaccineName: v.name,
+                    dueDate: v.date || (child.nextDueVaccineDate ? new Date(child.nextDueVaccineDate).toISOString().split('T')[0] : 'N/A'),
+                    motherName: child.motherName,
+                    phone: child.phone,
+                    status: 'Due'
+                });
+            });
+        });
+        return alerts;
     };
 
     useEffect(() => {
@@ -428,7 +575,7 @@ const MidwifeDashboard = () => {
                                                 </button>
                                                 <button
                                                     onClick={() => navigate(`/child-profile/${child._id}`)}
-                                                    className="bg-slate-100 hover:bg-[#1D61FF]/10 text-[#1D61FF] text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                                                    className="border border-slate-200 text-slate-600 text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-slate-50"
                                                 >
                                                     View Profile
                                                 </button>
@@ -448,17 +595,17 @@ const MidwifeDashboard = () => {
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                             <div className="bg-red-50 border border-red-100 rounded-2xl p-5 shadow-sm">
                                 <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider">Severely Underweight</span>
-                                <h3 className="text-3xl font-extrabold text-red-800 mt-1">1</h3>
-                                <span className="text-[10px] text-red-600 block mt-1">Critical Grade III Drop alert</span>
+                                <h3 className="text-3xl font-extrabold text-red-800 mt-1">{getGrowthStats().critical}</h3>
+                                <span className="text-[10px] text-red-600 block mt-1">Critical weight level alert</span>
                             </div>
                             <div className="bg-orange-50 border border-orange-100 rounded-2xl p-5 shadow-sm">
                                 <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider">Moderate Underweight</span>
-                                <h3 className="text-3xl font-extrabold text-orange-800 mt-1">2</h3>
-                                <span className="text-[10px] text-orange-600 block mt-1">Grade II monitoring triggers</span>
+                                <h3 className="text-3xl font-extrabold text-orange-800 mt-1">{getGrowthStats().moderate}</h3>
+                                <span className="text-[10px] text-orange-600 block mt-1">Moderate monitoring triggers</span>
                             </div>
                             <div className="bg-green-50 border border-green-100 rounded-2xl p-5 shadow-sm">
                                 <span className="text-[10px] font-bold text-green-700 uppercase tracking-wider">Healthy Status</span>
-                                <h3 className="text-3xl font-extrabold text-green-800 mt-1">{Math.max(0, children.length - 3)}</h3>
+                                <h3 className="text-3xl font-extrabold text-green-800 mt-1">{getGrowthStats().healthy}</h3>
                                 <span className="text-[10px] text-green-600 block mt-1">Active growth progress</span>
                             </div>
                         </div>
@@ -483,67 +630,31 @@ const MidwifeDashboard = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {children.length === 0 ? (
+                                    {getGrowthAlerts().length === 0 ? (
                                         <tr>
-                                            <td colSpan="7" className="text-center py-6 text-slate-400">No registered children.</td>
+                                            <td colSpan="7" className="text-center py-6 text-slate-400">No active growth retardation alerts.</td>
                                         </tr>
                                     ) : (
-                                        <>
-                                            <tr>
-                                                <td className="font-bold text-slate-800">Senuri Perera</td>
-                                                <td className="font-mono text-slate-500">SL-2024-1-30066</td>
-                                                <td>18 Months</td>
+                                        getGrowthAlerts().map((alert, idx) => (
+                                            <tr key={idx}>
+                                                <td className="font-bold text-slate-800">{alert.name}</td>
+                                                <td className="font-mono text-slate-500">{alert.digitalHealthId}</td>
+                                                <td>{alert.age}</td>
                                                 <td>
-                                                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold text-[10px]">Critical</span>
+                                                    <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${alert.status === 'Critical' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{alert.status}</span>
                                                 </td>
-                                                <td className="text-red-600 font-semibold">8.5kg → 8.2kg (-0.3kg)</td>
-                                                <td>Priyanthi (PHM)</td>
+                                                <td className={`font-semibold ${alert.status === 'Critical' ? 'text-red-600' : 'text-amber-600'}`}>{alert.velocity}</td>
+                                                <td>{alert.registeredBy}</td>
                                                 <td>
                                                     <button
-                                                        onClick={() => navigate(`/child-profile/${children[0]?._id || ''}`)}
+                                                        onClick={() => navigate(`/child-profile/${alert._id}`)}
                                                         className="text-xs bg-[#1D61FF]/10 text-[#1D61FF] font-bold px-2.5 py-1 rounded"
                                                     >
                                                         Review Growth
                                                     </button>
                                                 </td>
                                             </tr>
-                                            <tr>
-                                                <td className="font-bold text-slate-800">Dilshan Silva</td>
-                                                <td className="font-mono text-slate-500">SL-2025-2-45210</td>
-                                                <td>12 Months</td>
-                                                <td>
-                                                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold text-[10px]">Critical</span>
-                                                </td>
-                                                <td className="text-red-600 font-semibold">9.1kg → 8.6kg (-0.5kg)</td>
-                                                <td>Priyanthi (PHM)</td>
-                                                <td>
-                                                    <button
-                                                        onClick={() => navigate(`/child-profile/${children[1]?._id || ''}`)}
-                                                        className="text-xs bg-[#1D61FF]/10 text-[#1D61FF] font-bold px-2.5 py-1 rounded"
-                                                    >
-                                                        Review Growth
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="font-bold text-slate-800">Arshad Rahaman</td>
-                                                <td className="font-mono text-slate-500">SL-2025-1-10293</td>
-                                                <td>9 Months</td>
-                                                <td>
-                                                    <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-bold text-[10px]">High Alert</span>
-                                                </td>
-                                                <td className="text-amber-600 font-semibold">7.9kg → 7.4kg (-0.5kg)</td>
-                                                <td>Fathima (PHM)</td>
-                                                <td>
-                                                    <button
-                                                        onClick={() => navigate(`/child-profile/${children[2]?._id || ''}`)}
-                                                        className="text-xs bg-[#1D61FF]/10 text-[#1D61FF] font-bold px-2.5 py-1 rounded"
-                                                    >
-                                                        Review Growth
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        </>
+                                        ))
                                     )}
                                 </tbody>
                             </table>
@@ -573,60 +684,32 @@ const MidwifeDashboard = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr>
-                                    <td className="font-bold text-slate-800">Senuri Perera</td>
-                                    <td className="font-mono text-slate-500">SL-2024-1-30066</td>
-                                    <td><span className="bg-red-50 text-red-700 border border-red-100 px-2 py-0.5 rounded font-medium">DPT Booster (18M)</span></td>
-                                    <td className="text-red-600 font-semibold">2026-07-25</td>
-                                    <td>Anoma Perera</td>
-                                    <td>0779213032</td>
-                                    <td><span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded">Not Sent</span></td>
-                                    <td className="text-right">
-                                        <button
-                                            onClick={() => handleSendSmsAlert('Senuri Perera', 'DPT Booster')}
-                                            className="bg-green-600 hover:bg-green-700 text-white font-bold px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"
-                                        >
-                                            <Smartphone size={13} />
-                                            <span>Send SMS Alert</span>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td className="font-bold text-slate-800">Sahan Perera</td>
-                                    <td className="font-mono text-slate-500">SL-2026-1-93929</td>
-                                    <td><span className="bg-red-50 text-red-700 border border-red-100 px-2 py-0.5 rounded font-medium">Pentavalent 3 (6M)</span></td>
-                                    <td className="text-red-600 font-semibold">2026-06-10</td>
-                                    <td>Anoma Perera</td>
-                                    <td>0779213032</td>
-                                    <td><span className="bg-green-100 text-green-700 px-2 py-0.5 rounded font-bold">Sent (July 15)</span></td>
-                                    <td className="text-right">
-                                        <button
-                                            onClick={() => handleSendSmsAlert('Sahan Perera', 'Pentavalent 3')}
-                                            className="bg-green-600 hover:bg-green-700 text-white font-bold px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"
-                                        >
-                                            <Smartphone size={13} />
-                                            <span>Resend SMS</span>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td className="font-bold text-slate-800">Arshad Rahaman</td>
-                                    <td className="font-mono text-slate-500">SL-2025-1-10293</td>
-                                    <td><span className="bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded font-medium">Measles & Rubella (9M)</span></td>
-                                    <td className="text-slate-600">2026-07-28</td>
-                                    <td>Fathima Rahaman</td>
-                                    <td>0769328102</td>
-                                    <td><span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded">Scheduled</span></td>
-                                    <td className="text-right">
-                                        <button
-                                            onClick={() => handleSendSmsAlert('Arshad Rahaman', 'Measles & Rubella')}
-                                            className="bg-green-600 hover:bg-green-700 text-white font-bold px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"
-                                        >
-                                            <Smartphone size={13} />
-                                            <span>Send SMS Alert</span>
-                                        </button>
-                                    </td>
-                                </tr>
+                                {getVaccinationAlerts().length === 0 ? (
+                                    <tr>
+                                        <td colSpan="8" className="text-center py-6 text-slate-400">No pending vaccination alerts.</td>
+                                    </tr>
+                                ) : (
+                                    getVaccinationAlerts().map((alert, idx) => (
+                                        <tr key={idx}>
+                                            <td className="font-bold text-slate-800">{alert.name}</td>
+                                            <td className="font-mono text-slate-500">{alert.digitalHealthId}</td>
+                                            <td><span className="bg-red-50 text-red-700 border border-red-100 px-2 py-0.5 rounded font-medium">{alert.vaccineName}</span></td>
+                                            <td className="text-red-600 font-semibold">{alert.dueDate}</td>
+                                            <td>{alert.motherName}</td>
+                                            <td>{alert.phone}</td>
+                                            <td><span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded">Not Sent</span></td>
+                                            <td className="text-right">
+                                                <button
+                                                    onClick={() => handleSendSmsAlert(alert.name, alert.vaccineName)}
+                                                    className="bg-green-600 hover:bg-green-700 text-white font-bold px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"
+                                                >
+                                                    <Smartphone size={13} />
+                                                    <span>Send SMS Alert</span>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>

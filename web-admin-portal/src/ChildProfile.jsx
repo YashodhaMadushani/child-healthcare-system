@@ -2,33 +2,34 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip as RechartsTooltip, 
-  ResponsiveContainer, 
-  Legend 
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  Legend
 } from 'recharts';
-import { 
-  User, 
-  Calendar, 
-  Activity, 
-  Phone, 
-  MapPin, 
-  Home, 
-  Clock, 
-  ShieldAlert, 
-  CheckCircle, 
-  Plus, 
-  Printer, 
-  ChevronRight, 
+import {
+  User,
+  Calendar,
+  Activity,
+  Phone,
+  MapPin,
+  Home,
+  Clock,
+  ShieldAlert,
+  CheckCircle,
+  Plus,
+  Printer,
+  ChevronRight,
   Eye,
   LogOut,
   Stethoscope,
-  Info
+  Info,
+  ChevronDown
 } from 'lucide-react';
 import './Dashboard.css';
 
@@ -73,15 +74,16 @@ const INITIAL_VACCINES = [
   { id: 1, name: "BCG (Birth)", status: "Completed", date: "2024-12-05" },
   { id: 2, name: "Pentavalent 1 (2M)", status: "Completed", date: "2025-02-05" },
   { id: 3, name: "OPV 1 (2M)", status: "Completed", date: "2025-02-05" },
-  { id: 4, name: "Pentavalent 2 (4M)", status: "Completed", date: "2025-04-05" },
+  { id: 4, name: "Pentavalent 2 (4M)", status: "Completed", date: "2025-02-05" },
   { id: 5, name: "OPV 2 (4M)", status: "Completed", date: "2025-04-05" },
-  { id: 6, name: "Pentavalent 3 (6M)", status: "Completed", date: "2025-06-05" },
+  { id: 6, name: "Pentavalent 3 (6M)", status: "Completed", date: "2025-04-05" },
   { id: 7, name: "OPV 3 (6M)", status: "Completed", date: "2025-06-05" },
-  { id: 8, name: "Measles & Rubella (9M)", status: "Completed", date: "2025-09-05" },
-  { id: 9, name: "MMR 1 (12M)", status: "Completed", date: "2025-12-05" },
-  { id: 10, name: "DPT Booster (18M)", status: "Due", date: "2026-07-25" },
-  { id: 11, name: "OPV Booster (18M)", status: "Upcoming", date: "2026-07-25" },
-  { id: 12, name: "JE Vaccine (12M)", status: "Completed", date: "2025-12-10" }
+  { id: 8, name: "MMR 1 (9M)", status: "Completed", date: "2025-06-05" },
+  { id: 9, name: "JE vaccine (12M)", status: "Completed", date: "2025-09-05" },
+  { id: 10, name: "OPV & DTP 4 (18M)", status: "Completed", date: "2025-12-05" },
+  { id: 11, name: "MMR 2 (3Yrs)", status: "Due", date: "2026-07-25" },
+  { id: 12, name: "OPV & DT 5 (5Yrs)", status: "Upcoming", date: "2026-07-25" },
+  { id: 13, name: "aTd (12Yrs)", status: "Upcoming", date: "2026-07-25" }
 ];
 
 export default function ChildProfile() {
@@ -308,6 +310,159 @@ export default function ChildProfile() {
   const latestHeight = heightData[heightData.length - 1].height;
   const calculatedBMI = (latestWeight / ((latestHeight / 100) * (latestHeight / 100))).toFixed(1);
 
+  const getBmiStatus = (bmiValue, ageMonths, gender) => {
+    const bmi = parseFloat(bmiValue);
+    if (isNaN(bmi)) return { text: "N/A", colorClass: "text-slate-300", bgClass: "bg-slate-500/20", borderClass: "border-slate-500/20" };
+
+    // Dynamic WHO-based BMI Cutoffs for children (Underweight/Normal/Overweight)
+    let underweightCutoff = 13.5;
+    let overweightCutoff = 17.5;
+
+    if (ageMonths > 12) {
+      underweightCutoff = 13.0;
+      overweightCutoff = 17.0;
+    }
+
+    const isGirl = gender && (gender.toLowerCase() === 'girl' || gender.toLowerCase() === 'female');
+    if (isGirl) {
+      underweightCutoff -= 0.2;
+      overweightCutoff -= 0.3;
+    }
+
+    if (bmi < underweightCutoff) {
+      return { text: "Underweight", colorClass: "text-red-300", bgClass: "bg-red-500/20", borderClass: "border-red-500/20" };
+    } else if (bmi <= overweightCutoff) {
+      return { text: "Normal BMI Range", colorClass: "text-green-300", bgClass: "bg-green-500/20", borderClass: "border-green-500/20" };
+    } else {
+      return { text: "Overweight / At Risk", colorClass: "text-amber-300", bgClass: "bg-amber-500/20", borderClass: "border-amber-500/20" };
+    }
+  };
+
+  const calculateAgeMonths = (dobString) => {
+    if (!dobString) return 0;
+    const dob = new Date(dobString);
+    const today = new Date();
+    let months = (today.getFullYear() - dob.getFullYear()) * 12;
+    months -= dob.getMonth();
+    months += today.getMonth();
+    return Math.max(0, months);
+  };
+
+  const childAgeMonths = calculateAgeMonths(child.dob);
+  const bmiStatusObj = getBmiStatus(calculatedBMI, childAgeMonths, child.gender);
+
+  const nextVisitDate = child.nextClinicDate
+    ? new Date(child.nextClinicDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+    : 'Not Scheduled';
+
+  const nextVaccineText = child.nextDueVaccineDate
+    ? `Vaccine: ${new Date(child.nextDueVaccineDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}`
+    : 'No Vaccines Scheduled';
+
+  const calculateHeightPercentile = (heightValue) => {
+    const h = parseFloat(heightValue);
+    if (isNaN(h)) return "50th Percentile";
+    if (h < 75) return "3rd Percentile";
+    if (h < 78) return "15th Percentile";
+    if (h < 83) return "50th Percentile";
+    if (h < 86) return "85th Percentile";
+    return "97th Percentile";
+  };
+
+  const getHeightPercentileStyle = (percentile) => {
+    if (percentile === "3rd Percentile") {
+      return { bgClass: "bg-red-500/20", colorClass: "text-red-300", borderClass: "border-red-500/20" };
+    }
+    if (percentile === "15th Percentile" || percentile === "85th Percentile") {
+      return { bgClass: "bg-amber-500/20", colorClass: "text-amber-300", borderClass: "border-amber-500/20" };
+    }
+    return { bgClass: "bg-green-500/20", colorClass: "text-green-300", borderClass: "border-green-500/20" };
+  };
+
+  const heightPercentile = calculateHeightPercentile(latestHeight);
+  const hPercentileStyle = getHeightPercentileStyle(heightPercentile);
+
+  // 1. Weight drop alert
+  const hasWeightDropped = () => {
+    if (!child.growthRecords || child.growthRecords.length < 2) return false;
+    const latest = child.growthRecords[child.growthRecords.length - 1].weight;
+    const previous = child.growthRecords[child.growthRecords.length - 2].weight;
+    return latest < previous;
+  };
+  const weightDropActive = hasWeightDropped();
+
+  // 2. Stunting Risk (Height-for-Age percentile check)
+  const getStuntingRisk = (percentile) => {
+    if (percentile === "3rd Percentile") return { text: "High Risk", color: "text-red-600" };
+    if (percentile === "15th Percentile") return { text: "Moderate Risk", color: "text-amber-600" };
+    return { text: "Low Risk", color: "text-green-700" };
+  };
+  const stuntingRiskObj = getStuntingRisk(heightPercentile);
+
+  // 3. Wasting Score (BMI Status check)
+  const getWastingStatus = (bmiText, bmiVal) => {
+    if (bmiText === "Underweight") return { text: `Wasting Alert (${bmiVal})`, color: "text-red-600" };
+    if (bmiText === "Overweight / At Risk") return { text: `Overweight (${bmiVal})`, color: "text-amber-600" };
+    return { text: `Normal (${bmiVal})`, color: "text-green-700" };
+  };
+  const wastingStatusObj = getWastingStatus(bmiStatusObj.text, calculatedBMI);
+
+  // 4. Severe Illnesses
+  const getSevereIllnesses = (childRecord) => {
+    if (!childRecord.riskIndicators) return { text: "None", color: "text-green-700" };
+    const conditions = [];
+    if (childRecord.riskIndicators.congenitalCondition) conditions.push("Congenital");
+    if (childRecord.riskIndicators.specialDoctorCare) conditions.push("Special Care");
+    if (childRecord.riskIndicators.prematureBirth) conditions.push("Premature");
+    return conditions.length > 0
+      ? { text: conditions.join(", "), color: "text-red-600" }
+      : { text: "None", color: "text-green-700" };
+  };
+  const severeIllnessObj = getSevereIllnesses(child);
+
+  // Dynamic upcoming appointments calculation
+  const getUpcomingAppointments = () => {
+    const appointmentsList = [];
+
+    // 1. Next Clinic Date
+    if (child.nextClinicDate) {
+      appointmentsList.push({
+        title: "Routine Clinic & Growth Review",
+        date: new Date(child.nextClinicDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }),
+        location: `${child.assignedClinicCenter || 'Colombo 05'} MOH`,
+        icon: "🩺",
+        color: "bg-orange-100 text-orange-600"
+      });
+    }
+
+    // 2. Next Vaccine Due Date
+    if (child.nextDueVaccineDate) {
+      const nextDueVac = child.vaccinations?.find(v => v.status === 'Due');
+      const vaccineName = nextDueVac ? nextDueVac.name : "Immunization Clinic";
+      appointmentsList.push({
+        title: `${vaccineName} Session`,
+        date: new Date(child.nextDueVaccineDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }),
+        location: `${child.assignedClinicCenter || 'Colombo 05'} MOH`,
+        icon: "💉",
+        color: "bg-[#1D61FF]/10 text-[#1D61FF]"
+      });
+    }
+
+    // 3. Referral Specialist checks
+    if (child.riskIndicators?.specialDoctorCare || child.riskIndicators?.congenitalCondition) {
+      appointmentsList.push({
+        title: "Pediatrician Specialist Review",
+        date: "Scheduled on next visit",
+        location: `${child.assignedClinicCenter || 'Colombo 05'} MOH`,
+        icon: "👨‍⚕️",
+        color: "bg-red-100 text-red-600"
+      });
+    }
+
+    return appointmentsList;
+  };
+  const upcomingAppointments = getUpcomingAppointments();
+
   // Vaccine progress
   const completedVaccinesCount = vaccines.filter(v => v.status === 'Completed').length;
   const vaccineProgressPercent = Math.round((completedVaccinesCount / vaccines.length) * 100);
@@ -320,7 +475,7 @@ export default function ChildProfile() {
 
   return (
     <div className="dashboard-container min-h-screen bg-[#F8FAFC] flex font-sans antialiased text-[#0F172A]">
-      
+
       {/* Sidebar Navigation - Dark Navy Icon Rail */}
       <aside className="sidebar w-64 bg-[#0F172A] text-white p-5 flex flex-col justify-between shrink-0">
         <div>
@@ -332,7 +487,7 @@ export default function ChildProfile() {
             </div>
           </div>
           <ul className="nav-menu space-y-1.5">
-            <li 
+            <li
               onClick={() => navigate('/midwife-dashboard')}
               className="flex items-center gap-2.5 px-4 py-3 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer"
             >
@@ -350,11 +505,11 @@ export default function ChildProfile() {
           </ul>
         </div>
         <div>
-          <button 
+          <button
             onClick={() => {
               localStorage.clear();
               window.location.href = '/';
-            }} 
+            }}
             className="logout-link flex items-center gap-2 text-red-400 hover:text-red-300 font-semibold text-sm w-full py-2.5 border-t border-slate-800"
           >
             <LogOut size={16} />
@@ -365,20 +520,19 @@ export default function ChildProfile() {
 
       {/* Main Area */}
       <main className="main-content flex-grow p-6 flex flex-col overflow-y-auto">
-        
+
         {/* Profile Banner Component (Dark Navy) */}
         <section className="bg-[#0F172A] text-white rounded-3xl p-6 mb-6 shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-[#1D61FF]/10 rounded-full blur-3xl pointer-events-none"></div>
-          
+
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
             <div className="flex items-center gap-4">
               {/* Initials Avatar */}
-              <div className={`w-16 h-16 rounded-full flex items-center justify-center font-extrabold text-lg text-white shadow-inner ${
-                isFemale ? 'bg-pink-600' : 'bg-blue-600'
-              }`}>
-                {child.name ? child.name.split(' ').map(n=>n[0]).join('').substring(0, 2).toUpperCase() : 'C'}
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center font-extrabold text-lg text-white shadow-inner ${isFemale ? 'bg-pink-600' : 'bg-blue-600'
+                }`}>
+                {child.name ? child.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'C'}
               </div>
-              
+
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h1 className="text-xl font-bold">{child.name}</h1>
@@ -386,21 +540,21 @@ export default function ChildProfile() {
                     {child.digitalHealthId}
                   </span>
                 </div>
-                
+
                 {/* Meta details */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2 text-xs text-slate-300 font-medium">
-                  <span className="flex items-center gap-1"><Clock size={13} className="text-slate-400"/> Age: 18 Months</span>
+                  <span className="flex items-center gap-1"><Clock size={13} className="text-slate-400" /> Age: {childAgeMonths} Months</span>
                   <span>•</span>
                   <span>Gender: {child.gender}</span>
                   <span>•</span>
-                  <span className="flex items-center gap-1"><Calendar size={13} className="text-slate-400"/> DOB: {new Date(child.dob).toLocaleDateString()}</span>
+                  <span className="flex items-center gap-1"><Calendar size={13} className="text-slate-400" /> DOB: {new Date(child.dob).toLocaleDateString()}</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 mt-4 pt-4 border-t border-white/10 text-xs text-slate-400">
                   <div><strong>Mother Name:</strong> {child.motherName || 'N/A'}</div>
                   <div><strong>Contact:</strong> {child.phone || 'N/A'}</div>
-                  <div><strong>Assigned Clinic:</strong> Colombo 05 MOH</div>
-                  <div><strong>Midwife:</strong> Kamani Perera (PHM)</div>
+                  <div><strong>Assigned Clinic:</strong> {child.assignedClinicCenter || 'Colombo 05 MOH'}</div>
+                  <div><strong>Midwife:</strong> {child.registeredBy || 'Kamani Perera'} {child.phmRange ? `(${child.phmRange})` : '(PHM)'}</div>
                 </div>
               </div>
             </div>
@@ -412,8 +566,8 @@ export default function ChildProfile() {
               </div>
               <div className="flex flex-col gap-1.5 justify-center">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Child Digital ID</span>
-                <span className="text-xs font-semibold text-slate-200">Colombo MOH Clinic Pass</span>
-                <button 
+                <span className="text-xs font-semibold text-slate-200">{child.mohArea || 'Colombo'} MOH Clinic Pass</span>
+                <button
                   onClick={() => setIsQRModalOpen(true)}
                   className="mt-2 text-[#1D61FF] hover:text-[#1D61FF]/90 font-bold text-xs flex items-center gap-1.5 text-left bg-white/10 px-3 py-1.5 rounded-lg hover:bg-white/15"
                 >
@@ -430,31 +584,31 @@ export default function ChildProfile() {
               <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Current Weight</span>
               <strong className="text-base text-white block mt-0.5">{latestWeight} kg</strong>
               <span className="inline-block bg-red-500/20 text-red-300 font-extrabold text-[9px] px-2 py-0.5 rounded mt-1 border border-red-500/20">
-                {weightData[weightData.length-1].p3 ? '8th Percentile' : 'Critical'}
+                {weightData[weightData.length - 1].p3 ? '8th Percentile' : 'Critical'}
               </span>
             </div>
 
             <div className="bg-white/5 rounded-2xl p-3 border border-white/5">
               <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Current Height</span>
               <strong className="text-base text-white block mt-0.5">{latestHeight} cm</strong>
-              <span className="inline-block bg-amber-500/20 text-amber-300 font-extrabold text-[9px] px-2 py-0.5 rounded mt-1 border border-amber-500/20">
-                12th Percentile
+              <span className={`inline-block ${hPercentileStyle.bgClass} ${hPercentileStyle.colorClass} font-extrabold text-[9px] px-2 py-0.5 rounded mt-1 border ${hPercentileStyle.borderClass}`}>
+                {heightPercentile}
               </span>
             </div>
 
             <div className="bg-white/5 rounded-2xl p-3 border border-white/5">
               <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Calculated BMI</span>
               <strong className="text-base text-white block mt-0.5">{calculatedBMI}</strong>
-              <span className="inline-block bg-green-500/20 text-green-300 font-extrabold text-[9px] px-2 py-0.5 rounded mt-1 border border-green-500/20">
-                Normal BMI Range
+              <span className={`inline-block ${bmiStatusObj.bgClass} ${bmiStatusObj.colorClass} font-extrabold text-[9px] px-2 py-0.5 rounded mt-1 border ${bmiStatusObj.borderClass}`}>
+                {bmiStatusObj.text}
               </span>
             </div>
 
             <div className="bg-white/5 rounded-2xl p-3 border border-white/5">
               <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Next Routine Visit</span>
-              <strong className="text-base text-slate-200 block mt-0.5">July 25, 2026</strong>
+              <strong className="text-base text-slate-200 block mt-0.5">{nextVisitDate}</strong>
               <span className="inline-block bg-blue-500/20 text-blue-300 font-extrabold text-[9px] px-2 py-0.5 rounded mt-1 border border-blue-500/20">
-                DPT Booster Due
+                {nextVaccineText}
               </span>
             </div>
           </div>
@@ -462,10 +616,10 @@ export default function ChildProfile() {
 
         {/* Main Columns Split Grid (65% Left, 35% Right) */}
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
-          
+
           {/* Left Column: Growth Tracking and Clinic Timeline (65%) */}
           <div className="lg:col-span-6 flex flex-col gap-6">
-            
+
             {/* Growth Tracking Card */}
             <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden flex flex-col">
               <div className="p-5 border-b border-[#E2E8F0] flex flex-col sm:flex-row justify-between sm:items-center gap-3">
@@ -473,8 +627,8 @@ export default function ChildProfile() {
                   <h2 className="text-base font-bold text-[#0F172A]">WHO Growth Charts & Statistics</h2>
                   <p className="text-xs text-slate-500">Weight-for-Age, Height-for-Age and BMI velocity trends</p>
                 </div>
-                
-                <button 
+
+                <button
                   onClick={() => setIsMeasureModalOpen(true)}
                   className="bg-[#1D61FF] hover:bg-[#1D61FF]/90 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-blue-500/10"
                 >
@@ -489,11 +643,10 @@ export default function ChildProfile() {
                   <button
                     key={tab}
                     onClick={() => setActiveChartTab(tab)}
-                    className={`flex-1 py-3 text-xs font-bold border-b-2 text-center transition-all ${
-                      activeChartTab === tab 
-                        ? 'border-b-[#1D61FF] text-[#1D61FF]' 
-                        : 'border-b-transparent text-slate-500 hover:text-[#0F172A]'
-                    }`}
+                    className={`flex-1 py-3 text-xs font-bold border-b-2 text-center transition-all ${activeChartTab === tab
+                      ? 'border-b-[#1D61FF] text-[#1D61FF]'
+                      : 'border-b-transparent text-slate-500 hover:text-[#0F172A]'
+                      }`}
                   >
                     {tab === 'Weight' ? 'Weight-for-Age' : tab === 'Height' ? 'Height-for-Age' : 'BMI Chart'}
                   </button>
@@ -504,40 +657,40 @@ export default function ChildProfile() {
               <div className="p-5">
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart 
+                    <AreaChart
                       data={activeChartTab === 'Weight' ? weightData : activeChartTab === 'Height' ? heightData : bmiData}
                       margin={{ top: 10, right: 10, left: -25, bottom: 0 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                       <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="#94A3B8" />
                       <YAxis tick={{ fontSize: 10 }} stroke="#94A3B8" />
-                      <RechartsTooltip 
+                      <RechartsTooltip
                         contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '8px', fontSize: '11px', border: 'none' }}
                         labelStyle={{ fontWeight: 'bold', color: '#1D61FF' }}
                       />
                       <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '15px' }} />
-                      
+
                       {/* Percentile Bands (Reference areas shaded) */}
                       <Area type="monotone" dataKey="p97" name="97th Percentile" stroke="#EF4444" strokeWidth={1} strokeDasharray="3 3" fill="none" />
                       <Area type="monotone" dataKey="p85" name="85th Percentile" stroke="#F59E0B" strokeWidth={1} strokeDasharray="3 3" fill="none" />
                       <Area type="monotone" dataKey="p50" name="WHO Median (50th)" stroke="#10B981" strokeWidth={1.5} strokeDasharray="4 4" fill="none" />
                       <Area type="monotone" dataKey="p15" name="15th Percentile" stroke="#F59E0B" strokeWidth={1} strokeDasharray="3 3" fill="none" />
                       <Area type="monotone" dataKey="p3" name="3rd Percentile" stroke="#EF4444" strokeWidth={1.5} strokeDasharray="2 2" fill="none" />
-                      
+
                       {/* Active Child Curve */}
-                      <Area 
-                        type="monotone" 
-                        dataKey={activeChartTab === 'Weight' ? 'weight' : activeChartTab === 'Height' ? 'height' : 'bmi'} 
-                        name={activeChartTab === 'Weight' ? 'Child Weight (kg)' : activeChartTab === 'Height' ? 'Child Height (cm)' : 'BMI Value'} 
-                        stroke="#1D61FF" 
-                        strokeWidth={3} 
-                        fill="url(#colorVal)" 
+                      <Area
+                        type="monotone"
+                        dataKey={activeChartTab === 'Weight' ? 'weight' : activeChartTab === 'Height' ? 'height' : 'bmi'}
+                        name={activeChartTab === 'Weight' ? 'Child Weight (kg)' : activeChartTab === 'Height' ? 'Child Height (cm)' : 'BMI Value'}
+                        stroke="#1D61FF"
+                        strokeWidth={3}
+                        fill="url(#colorVal)"
                       />
-                      
+
                       <defs>
                         <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#1D61FF" stopOpacity={0.15}/>
-                          <stop offset="95%" stopColor="#1D61FF" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="#1D61FF" stopOpacity={0.15} />
+                          <stop offset="95%" stopColor="#1D61FF" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                     </AreaChart>
@@ -557,13 +710,12 @@ export default function ChildProfile() {
                 {visits.map((visit, idx) => (
                   <div key={idx} className="relative">
                     {/* Color-coded dot rail indicator */}
-                    <span className={`absolute -left-[30px] top-1.5 w-3 h-3 rounded-full border-2 border-white ring-4 ${
-                      visit.type === 'Routine' 
-                        ? 'bg-blue-600 ring-blue-100' 
-                        : visit.type === 'Vaccine' 
-                          ? 'bg-green-600 ring-green-100' 
-                          : 'bg-orange-500 ring-orange-100'
-                    }`}></span>
+                    <span className={`absolute -left-[30px] top-1.5 w-3 h-3 rounded-full border-2 border-white ring-4 ${visit.type === 'Routine'
+                      ? 'bg-blue-600 ring-blue-100'
+                      : visit.type === 'Vaccine'
+                        ? 'bg-green-600 ring-green-100'
+                        : 'bg-orange-500 ring-orange-100'
+                      }`}></span>
 
                     <div className="flex justify-between items-start gap-4 flex-wrap">
                       <div>
@@ -590,7 +742,7 @@ export default function ChildProfile() {
 
           {/* Right Column: Health Alerts, Vaccination Checklist & Next Appointments (35%) */}
           <div className="lg:col-span-4 flex flex-col gap-6">
-            
+
             {/* Health Alerts Card (Green Pastel background style) */}
             <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-5 shadow-sm">
               <div className="flex items-center gap-2 mb-4">
@@ -602,32 +754,34 @@ export default function ChildProfile() {
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="bg-white border border-emerald-100 p-3 rounded-xl text-center">
                   <span className="text-[10px] text-slate-400 block font-bold">Stunting Risk</span>
-                  <span className="text-xs font-bold text-green-700 mt-1 inline-block">Low Risk</span>
+                  <span className={`text-xs font-bold ${stuntingRiskObj.color} mt-1 inline-block`}>{stuntingRiskObj.text}</span>
                 </div>
                 <div className="bg-white border border-emerald-100 p-3 rounded-xl text-center">
                   <span className="text-[10px] text-slate-400 block font-bold">Wasting Score</span>
-                  <span className="text-xs font-bold text-green-700 mt-1 inline-block">Normal (1.1)</span>
+                  <span className={`text-xs font-bold ${wastingStatusObj.color} mt-1 inline-block`}>{wastingStatusObj.text}</span>
                 </div>
                 <div className="bg-white border border-emerald-100 p-3 rounded-xl text-center">
                   <span className="text-[10px] text-slate-400 block font-bold">Weight drop alert</span>
-                  <span className="text-xs font-bold text-red-600 mt-1 inline-block">Triggered</span>
+                  <span className={`text-xs font-bold ${weightDropActive ? 'text-red-600' : 'text-green-700'} mt-1 inline-block`}>
+                    {weightDropActive ? 'Triggered' : 'Stable'}
+                  </span>
                 </div>
                 <div className="bg-white border border-emerald-100 p-3 rounded-xl text-center">
                   <span className="text-[10px] text-slate-400 block font-bold">Severe illnesses</span>
-                  <span className="text-xs font-bold text-green-700 mt-1 inline-block">None</span>
+                  <span className={`text-xs font-bold ${severeIllnessObj.color} mt-1 inline-block`}>{severeIllnessObj.text}</span>
                 </div>
               </div>
 
               {/* Editable Midwife observations */}
               <div>
                 <label className="block text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2">Midwife Observations & Notes</label>
-                <textarea 
+                <textarea
                   rows="3"
                   value={observations}
                   onChange={(e) => setObservations(e.target.value)}
                   className="w-full bg-white border border-emerald-100 rounded-xl p-3 text-xs text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
-                <button 
+                <button
                   onClick={handleSaveObservations}
                   disabled={isObsSaving}
                   className="mt-3 w-full bg-[#10B981] hover:bg-[#059669] text-white text-xs font-bold py-2 rounded-xl transition-all shadow-md shadow-emerald-500/10"
@@ -644,8 +798,8 @@ export default function ChildProfile() {
                   <h3 className="text-sm font-bold text-[#0F172A]">Vaccination Tracker</h3>
                   <p className="text-xs text-slate-500">National Immunization Ledger</p>
                 </div>
-                
-                <button 
+
+                <button
                   onClick={() => setIsVaccineModalOpen(true)}
                   className="bg-slate-100 hover:bg-slate-200 text-[#1D61FF] text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg transition-all"
                 >
@@ -667,14 +821,13 @@ export default function ChildProfile() {
               {/* Filter pills */}
               <div className="flex gap-1 mb-4 flex-wrap">
                 {['All', 'Completed', 'Due', 'Upcoming'].map(f => (
-                  <button 
+                  <button
                     key={f}
                     onClick={() => setVaccineFilter(f)}
-                    className={`text-[10px] font-bold px-2.5 py-1.5 rounded-full border transition-all ${
-                      vaccineFilter === f 
-                        ? 'bg-[#0F172A] text-white border-[#0F172A]' 
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                    }`}
+                    className={`text-[10px] font-bold px-2.5 py-1.5 rounded-full border transition-all ${vaccineFilter === f
+                      ? 'bg-[#0F172A] text-white border-[#0F172A]'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
                   >
                     {f}
                   </button>
@@ -691,13 +844,12 @@ export default function ChildProfile() {
                         <span className="text-[9px] text-slate-400 block">Given: {vac.date}</span>
                       )}
                     </div>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                      vac.status === 'Completed' 
-                        ? 'bg-green-100 text-green-700 border border-green-200' 
-                        : vac.status === 'Due' 
-                          ? 'bg-red-100 text-red-700 border border-red-200' 
-                          : 'bg-blue-100 text-blue-700 border border-blue-200'
-                    }`}>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${vac.status === 'Completed'
+                      ? 'bg-green-100 text-green-700 border border-green-200'
+                      : vac.status === 'Due'
+                        ? 'bg-red-100 text-red-700 border border-red-200'
+                        : 'bg-blue-100 text-blue-700 border border-blue-200'
+                      }`}>
                       {vac.status}
                     </span>
                   </div>
@@ -708,27 +860,23 @@ export default function ChildProfile() {
             {/* Upcoming Appointments mini-list */}
             <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-sm">
               <h3 className="text-sm font-bold text-[#0F172A] mb-3">Clinic Appointments</h3>
-              
-              <div className="space-y-3">
-                <div className="flex gap-3 bg-slate-50 p-3 rounded-xl border border-[#E2E8F0]/70">
-                  <div className="w-8 h-8 rounded-full bg-[#1D61FF]/10 text-[#1D61FF] flex items-center justify-center shrink-0">
-                    💉
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-800">DPT + OPV Booster Clinic</h4>
-                    <p className="text-[10px] text-slate-400 mt-0.5">July 25, 2026 • MOH Colombo 05</p>
-                  </div>
-                </div>
 
-                <div className="flex gap-3 bg-slate-50 p-3 rounded-xl border border-[#E2E8F0]/70">
-                  <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
-                    🩺
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-800">Pediatric Nutritionist review</h4>
-                    <p className="text-[10px] text-slate-400 mt-0.5">August 10, 2026 • MOH Colombo 05</p>
-                  </div>
-                </div>
+              <div className="space-y-3">
+                {upcomingAppointments.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic text-center py-4">No upcoming scheduled appointments.</p>
+                ) : (
+                  upcomingAppointments.map((appt, idx) => (
+                    <div key={idx} className="flex gap-3 bg-slate-50 p-3 rounded-xl border border-[#E2E8F0]/70">
+                      <div className={`w-8 h-8 rounded-full ${appt.color} flex items-center justify-center shrink-0`}>
+                        {appt.icon}
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-800">{appt.title}</h4>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{appt.date} • {appt.location}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -745,7 +893,7 @@ export default function ChildProfile() {
             <div ref={printCardRef} className="p-4 border-2 border-dashed border-[#1D61FF] rounded-xl bg-slate-50">
               <h3 className="text-md font-bold text-[#1D61FF]">CHILD DIGITAL HEALTH CARD</h3>
               <p className="text-[10px] text-slate-500 uppercase tracking-wider">Ministry of Health, Sri Lanka</p>
-              
+
               <div className="my-5 flex justify-center">
                 <QRCodeSVG value={child.digitalHealthId} size={150} />
               </div>
@@ -759,14 +907,14 @@ export default function ChildProfile() {
             </div>
 
             <div className="flex gap-3 mt-5">
-              <button 
+              <button
                 onClick={handlePrintQR}
                 className="flex-1 bg-[#1D61FF] hover:bg-[#1D61FF]/90 text-white font-bold text-xs py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/10"
               >
                 <Printer size={14} />
                 <span>Print Card</span>
               </button>
-              <button 
+              <button
                 onClick={() => setIsQRModalOpen(false)}
                 className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2.5 rounded-xl transition-all"
               >
@@ -788,7 +936,7 @@ export default function ChildProfile() {
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Age Interval</label>
                 <div className="relative">
-                  <select 
+                  <select
                     value={newMonth}
                     onChange={(e) => setNewMonth(e.target.value)}
                     className="w-full text-xs bg-white border border-[#E2E8F0] rounded-xl p-3 appearance-none focus:outline-none focus:ring-2 focus:ring-[#1D61FF]"
@@ -807,7 +955,7 @@ export default function ChildProfile() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Weight (kg)</label>
-                  <input 
+                  <input
                     type="number"
                     step="0.1"
                     required
@@ -820,7 +968,7 @@ export default function ChildProfile() {
 
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Height (cm)</label>
-                  <input 
+                  <input
                     type="number"
                     step="0.1"
                     required
@@ -833,13 +981,13 @@ export default function ChildProfile() {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button 
+                <button
                   type="submit"
                   className="flex-1 bg-[#1D61FF] hover:bg-[#1D61FF]/90 text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-md shadow-blue-500/10"
                 >
                   Save Metrics
                 </button>
-                <button 
+                <button
                   type="button"
                   onClick={() => setIsMeasureModalOpen(false)}
                   className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2.5 rounded-xl transition-all"
@@ -863,7 +1011,7 @@ export default function ChildProfile() {
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Select Vaccine</label>
                 <div className="relative">
-                  <select 
+                  <select
                     required
                     value={selectedVaccineId}
                     onChange={(e) => setSelectedVaccineId(e.target.value)}
@@ -880,7 +1028,7 @@ export default function ChildProfile() {
 
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Administration Date</label>
-                <input 
+                <input
                   type="date"
                   required
                   value={administeredDate}
@@ -890,13 +1038,13 @@ export default function ChildProfile() {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button 
+                <button
                   type="submit"
                   className="flex-1 bg-[#1D61FF] hover:bg-[#1D61FF]/90 text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-md shadow-blue-500/10"
                 >
                   Save Immunization
                 </button>
-                <button 
+                <button
                   type="button"
                   onClick={() => setIsVaccineModalOpen(false)}
                   className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2.5 rounded-xl transition-all"

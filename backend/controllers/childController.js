@@ -9,31 +9,34 @@ const getInitialVaccinationSchedule = (dob) => [
   { name: "OPV 2 (4M)", status: "Upcoming", date: "" },
   { name: "Pentavalent 3 (6M)", status: "Upcoming", date: "" },
   { name: "OPV 3 (6M)", status: "Upcoming", date: "" },
-  { name: "Measles & Rubella (9M)", status: "Upcoming", date: "" },
-  { name: "MMR 1 (12M)", status: "Upcoming", date: "" },
-  { name: "DPT Booster (18M)", status: "Upcoming", date: "" }
+  { name: "MMR 1 (9M)", status: "Upcoming", date: "" },
+  { name: "JE vaccine (12M)", status: "Upcoming", date: "" },
+  { name: "OPV & DTP 4 (18M)", status: "Upcoming", date: "" },
+  { name: "MMR 2 (3Yrs)", status: "Upcoming", date: "" },
+  { name: "OPV & DT 5 (5Yrs)", status: "Upcoming", date: "" },
+  { name: "aTd (12Yrs)", status: "Upcoming", date: "" }
 ];
 
 // 1. Register a new child
 const registerChild = async (req, res) => {
   try {
-    const { 
-      name, 
+    const {
+      name,
       nameWithInitials,
       chdrNo,
       birthCertRegNo,
-      dob, 
-      gender, 
-      birthWeight, 
-      birthHeight, 
+      dob,
+      gender,
+      birthWeight,
+      birthHeight,
       headCircumference,
       birthHospital,
       isMotherAbsent,
       guardianType,
       guardianName,
       guardianNic,
-      motherName, 
-      phone, 
+      motherName,
+      phone,
       secondaryPhone,
       address,
       mohArea,
@@ -51,16 +54,16 @@ const registerChild = async (req, res) => {
     }
 
     const birthDateObj = new Date(dob);
-    const birthYear = birthDateObj.getFullYear(); 
-    const randomNumber = Math.floor(10000 + Math.random() * 90000); 
+    const birthYear = birthDateObj.getFullYear();
+    const randomNumber = Math.floor(10000 + Math.random() * 90000);
     const genderCode = (gender === 'Male' || gender === 'Boy') ? 1 : 2;
     const digitalHealthId = `SL-${birthYear}-${genderCode}-${randomNumber}`;
 
     const newChild = new Child({
-      digitalHealthId, 
+      digitalHealthId,
       chdrNo: chdrNo || '',
       birthCertRegNo: birthCertRegNo || '',
-      name, 
+      name,
       nameWithInitials: nameWithInitials || '',
       dob,
       gender: gender || 'Boy',
@@ -94,7 +97,7 @@ const registerChild = async (req, res) => {
           ageInterval: "0M",
           weight: Number(birthWeight) || 3.0,
           height: Number(birthHeight) || 50.0,
-          bmi: parseFloat(((Number(birthWeight) || 3.0) / (((Number(birthHeight) || 50.0)/100) * ((Number(birthHeight) || 50.0)/100))).toFixed(1))
+          bmi: parseFloat(((Number(birthWeight) || 3.0) / (((Number(birthHeight) || 50.0) / 100) * ((Number(birthHeight) || 50.0) / 100))).toFixed(1))
         }
       ],
       vaccinations: getInitialVaccinationSchedule(dob)
@@ -111,8 +114,25 @@ const registerChild = async (req, res) => {
 // 2. Get all registered children
 const getChildren = async (req, res) => {
   try {
-    const children = await Child.find().sort({ createdAt: -1 }); 
-    res.status(200).json(children);
+    const children = await Child.find().sort({ createdAt: -1 });
+    
+    // Resolve registeredBy IDs to Midwife/Staff Names
+    const User = require('../models/User');
+    const childObjects = children.map(c => c.toObject());
+    const staffIds = [...new Set(childObjects.map(c => c.registeredBy).filter(id => id && id.match(/^[0-9a-fA-F]{24}$/)))];
+    
+    if (staffIds.length > 0) {
+      const users = await User.find({ _id: { $in: staffIds } });
+      const userMap = {};
+      users.forEach(u => { userMap[u._id.toString()] = u.name; });
+      childObjects.forEach(c => {
+        if (c.registeredBy && userMap[c.registeredBy]) {
+          c.registeredBy = userMap[c.registeredBy];
+        }
+      });
+    }
+    
+    res.status(200).json(childObjects);
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: 'Server Error' });
@@ -146,7 +166,16 @@ const getChildById = async (req, res) => {
       await child.save();
     }
 
-    res.status(200).json(child);
+    const childObj = child.toObject();
+    if (childObj.registeredBy && childObj.registeredBy.match(/^[0-9a-fA-F]{24}$/)) {
+      const User = require('../models/User');
+      const user = await User.findById(childObj.registeredBy);
+      if (user) {
+        childObj.registeredBy = user.name;
+      }
+    }
+
+    res.status(200).json(childObj);
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: 'Server Error' });
@@ -267,8 +296,8 @@ const recordClinicVisit = async (req, res) => {
 
     // Push new growth record
     if (weight || height) {
-      const calculatedBmi = (weight && height) 
-        ? parseFloat((weight / ((height/100) * (height/100))).toFixed(1)) 
+      const calculatedBmi = (weight && height)
+        ? parseFloat((weight / ((height / 100) * (height / 100))).toFixed(1))
         : 15.0;
       child.growthRecords.push({
         date: new Date(),
@@ -289,6 +318,13 @@ const recordClinicVisit = async (req, res) => {
       });
     }
 
+    if (nextClinicDate) {
+      child.nextClinicDate = new Date(nextClinicDate);
+    }
+    if (nextDueVaccineDate) {
+      child.nextDueVaccineDate = new Date(nextDueVaccineDate);
+    }
+
     await child.save();
 
     // Create doctor referral item if requested
@@ -298,7 +334,7 @@ const recordClinicVisit = async (req, res) => {
       const diffMs = Date.now() - birthDate.getTime();
       const ageMonths = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 30.4375));
       const ageStr = `${ageMonths} Months`;
-      
+
       const newReferral = new Referral({
         digitalHealthId: child.digitalHealthId,
         name: child.name,
@@ -347,8 +383,8 @@ const recordClinicVisit = async (req, res) => {
   }
 };
 
-module.exports = { 
-  registerChild, 
+module.exports = {
+  registerChild,
   getChildren,
   getChildById,
   addGrowthRecord,
