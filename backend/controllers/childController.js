@@ -331,8 +331,11 @@ const recordClinicVisit = async (req, res) => {
     if (referToDoctor) {
       const Referral = require('../models/Referral');
       const birthDate = new Date(child.dob);
-      const diffMs = Date.now() - birthDate.getTime();
-      const ageMonths = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 30.4375));
+      const today = new Date();
+      let ageMonths = (today.getFullYear() - birthDate.getFullYear()) * 12;
+      ageMonths -= birthDate.getMonth();
+      ageMonths += today.getMonth();
+      ageMonths = Math.max(0, ageMonths);
       const ageStr = `${ageMonths} Months`;
 
       const newReferral = new Referral({
@@ -383,6 +386,36 @@ const recordClinicVisit = async (req, res) => {
   }
 };
 
+// 8. Add Thriposha distribution entry
+const addThriposhaDistribution = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date, packetsIssued, batchNo, remarks } = req.body;
+
+    const child = await Child.findById(id);
+    if (!child) {
+      return res.status(404).json({ msg: 'Child not found' });
+    }
+
+    if (!child.thriposhaHistory) {
+      child.thriposhaHistory = [];
+    }
+
+    child.thriposhaHistory.push({
+      date: date ? new Date(date) : new Date(),
+      packetsIssued: Number(packetsIssued) || 2,
+      batchNo: batchNo || '',
+      remarks: remarks || ''
+    });
+
+    await child.save();
+    res.status(200).json({ success: true, msg: 'Thriposha distribution logged successfully.', child });
+  } catch (err) {
+    console.error("Thriposha distribution logging error:", err);
+    res.status(500).json({ msg: 'Server Error: ' + err.message });
+  }
+};
+
 module.exports = {
   registerChild,
   getChildren,
@@ -390,5 +423,6 @@ module.exports = {
   addGrowthRecord,
   updateVaccineStatus,
   updateObservations,
-  recordClinicVisit
+  recordClinicVisit,
+  addThriposhaDistribution
 };

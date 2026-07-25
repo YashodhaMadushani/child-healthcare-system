@@ -7,7 +7,8 @@ const {
   addGrowthRecord,
   updateVaccineStatus,
   updateObservations,
-  recordClinicVisit
+  recordClinicVisit,
+  addThriposhaDistribution
 } = require('../controllers/childController'); 
 
 // POST Request - /api/children/register
@@ -30,5 +31,8 @@ router.post('/:id/vaccinations', updateVaccineStatus);
 
 // POST Request - Update midwife clinical observations
 router.post('/:id/observations', updateObservations);
+
+// POST Request - Log Thriposha distribution
+router.post('/:id/thriposha', addThriposhaDistribution);
 
 module.exports = router;

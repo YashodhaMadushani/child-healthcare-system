@@ -58,6 +58,24 @@ const ChildSchema = new mongoose.Schema({
       date: { type: String }
     }
   ],
+  thriposhaHistory: [
+    {
+      date: { type: Date, default: Date.now },
+      packetsIssued: { type: Number, default: 2 },
+      batchNo: { type: String },
+      remarks: { type: String }
+    }
+  ],
+  doctorAssessments: [
+    {
+      date: { type: Date, default: Date.now },
+      doctorName: { type: String },
+      diagnosis: { type: String },
+      treatment: { type: String },
+      specialistReferral: { type: String },
+      remarks: { type: String }
+    }
+  ],
   nextClinicDate: { type: Date },
   nextDueVaccineDate: { type: Date }
 }, { timestamps: true });

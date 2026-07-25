@@ -4,7 +4,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { useReactToPrint } from 'react-to-print';
 import './Modal.css';
 
-const MOH_AREAS = [
+const CLINIC_CENTERS = [
   "Imaduwa Central",
   "Dikkumbura",
   "Thittagalla",
@@ -14,7 +14,7 @@ const MOH_AREAS = [
   "Hatangala",
   "Puswelkada",
   "Danduwana",
-  "Agulugaha",
+  "Angulugaha",
   "Dorape",
   "Kahanda",
   "Induranvila",
@@ -61,7 +61,7 @@ const ChildRegistrationModal = ({ isOpen, onClose, refreshData, staffId }) => {
 
     // 4. Administrative & Location Info
     address: '',
-    mohArea: 'Dorape',
+    mohArea: '',
     phmRange: '',
     gnDivision: '',
     assignedClinicCenter: '',
@@ -437,15 +437,14 @@ const ChildRegistrationModal = ({ isOpen, onClose, refreshData, staffId }) => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', color: '#64748B', marginBottom: '6px' }}>MOH Area *</label>
-                    <select
+                    <input
+                      type="text"
+                      placeholder="e.g. Dorape"
+                      required
                       value={formData.mohArea}
                       onChange={e => setFormData({ ...formData, mohArea: e.target.value })}
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.85rem', outline: 'none', background: '#fff' }}
-                    >
-                      {MOH_AREAS.map((area, i) => (
-                        <option key={i} value={area}>{area}</option>
-                      ))}
-                    </select>
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.85rem', outline: 'none' }}
+                    />
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', color: '#64748B', marginBottom: '6px' }}>Midwife Division / PHM Range</label>
@@ -469,13 +468,16 @@ const ChildRegistrationModal = ({ isOpen, onClose, refreshData, staffId }) => {
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', color: '#64748B', marginBottom: '6px' }}>Assigned Clinic Center</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Dorape MOH Clinic"
+                    <select
                       value={formData.assignedClinicCenter}
                       onChange={e => setFormData({ ...formData, assignedClinicCenter: e.target.value })}
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.85rem', outline: 'none' }}
-                    />
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.85rem', outline: 'none', background: '#fff' }}
+                    >
+                      <option value="">Select Clinic Center</option>
+                      {CLINIC_CENTERS.map((center, i) => (
+                        <option key={i} value={center}>{center}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>

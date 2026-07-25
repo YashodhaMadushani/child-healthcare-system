@@ -148,21 +148,20 @@ const MOCK_REFERRALS = [
   }
 ];
 
-// Get all pending referrals (automatic seed if empty)
+// Get all pending referrals
 const getPendingReferrals = async (req, res) => {
   try {
-    let referrals = await Referral.find({ status: 'Pending' }).sort({ createdAt: 1 });
-    
-    // Auto-seed if database is empty for testing out-of-the-box
-    if (referrals.length === 0) {
-      const allReferrals = await Referral.find();
-      if (allReferrals.length === 0) {
-        await Referral.insertMany(MOCK_REFERRALS);
-        referrals = await Referral.find({ status: 'Pending' }).sort({ createdAt: 1 });
-      }
-    }
-    
-    res.status(200).json(referrals);
+    const queue = await Referral.find({ status: 'Pending' }).sort({ createdAt: 1 });
+
+    // Count reviewed today
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const examinedToday = await Referral.countDocuments({
+      status: 'Reviewed',
+      'assessment.reviewedAt': { $gte: startOfToday }
+    });
+
+    res.status(200).json({ queue, examinedToday });
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: 'Server Error' });
@@ -173,7 +172,7 @@ const getPendingReferrals = async (req, res) => {
 const submitAssessment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { diagnosis, treatment, specialistReferral, reviewDate } = req.body;
+    const { diagnosis, treatment, specialistReferral, reviewDate, vitals, parentNotes } = req.body;
 
     const referralItem = await Referral.findById(id);
     if (!referralItem) {
@@ -181,6 +180,15 @@ const submitAssessment = async (req, res) => {
     }
 
     referralItem.status = 'Reviewed';
+    if (vitals) {
+      referralItem.vitals = {
+        temp: vitals.temp || referralItem.vitals.temp,
+        hr: vitals.hr || referralItem.vitals.hr,
+        bp: vitals.bp || referralItem.vitals.bp,
+        tempAbnormal: parseFloat(vitals.temp) > 37.5 || parseFloat(vitals.temp) < 36.0,
+        hrAbnormal: parseInt(vitals.hr) > 120 || parseInt(vitals.hr) < 65
+      };
+    }
     referralItem.assessment = {
       diagnosis,
       treatment,
@@ -190,6 +198,26 @@ const submitAssessment = async (req, res) => {
     };
 
     await referralItem.save();
+
+    // Sync with Child Document clinical timeline
+    const Child = require('../models/Child');
+    const child = await Child.findOne({ digitalHealthId: referralItem.digitalHealthId });
+    if (child) {
+      if (!child.doctorAssessments) {
+        child.doctorAssessments = [];
+      }
+      child.doctorAssessments.push({
+        date: new Date(),
+        doctorName: "Dr. Nimal Silva",
+        diagnosis,
+        treatment,
+        specialistReferral: specialistReferral || 'None',
+        remarks: parentNotes || ''
+      });
+      // Optionally update current clinical observations
+      child.observations = `Pediatrician Findings: ${diagnosis}. Prescribed: ${treatment}.`;
+      await child.save();
+    }
     res.status(200).json({ success: true, msg: 'Assessment saved successfully.', referral: referralItem });
   } catch (err) {
     console.error(err);
@@ -197,21 +225,33 @@ const submitAssessment = async (req, res) => {
   }
 };
 
-// Reset all referrals for testing/demo purposes
+// Clear all referrals for testing/demo purposes
 const resetReferrals = async (req, res) => {
   try {
     await Referral.deleteMany();
-    await Referral.insertMany(MOCK_REFERRALS);
-    const referrals = await Referral.find({ status: 'Pending' }).sort({ createdAt: 1 });
-    res.status(200).json({ success: true, msg: 'Referral data reset successfully.', referrals });
+    res.status(200).json({ success: true, msg: 'Referral queue cleared successfully.', referrals: [] });
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: 'Server Error' });
   }
 };
 
+// Get all reviewed referrals (completed consultations)
+const getReviewedReferrals = async (req, res) => {
+  try {
+    const queue = await Referral.find({ status: 'Reviewed' }).sort({ 'assessment.reviewedAt': -1 });
+    res.status(200).json(queue);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: 'Server Error' });
+  }
+};
+
+
 module.exports = {
   getPendingReferrals,
   submitAssessment,
-  resetReferrals
+  resetReferrals,
+  getReviewedReferrals
 };
+

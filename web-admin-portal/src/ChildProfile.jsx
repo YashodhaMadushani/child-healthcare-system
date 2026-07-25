@@ -95,10 +95,17 @@ export default function ChildProfile() {
   const [loading, setLoading] = useState(true);
 
   // View States
+  const [activeSidebarTab, setActiveSidebarTab] = useState('Profile'); // Profile, GrowthAnalytics
   const [activeChartTab, setActiveChartTab] = useState('Weight'); // Weight, Height, BMI
   const [vaccineFilter, setVaccineFilter] = useState('All'); // All, Completed, Due, Upcoming
   const [observations, setObservations] = useState("Child's activity levels are normal. Encouraged continuing complementary feeding practices with additional micro-nutrients.");
   const [isObsSaving, setIsObsSaving] = useState(false);
+
+  // Thriposha Distribution States
+  const [thriposhaPackets, setThriposhaPackets] = useState(2);
+  const [thriposhaBatchNo, setThriposhaBatchNo] = useState('');
+  const [thriposhaRemarks, setThriposhaRemarks] = useState('');
+  const [isThriposhaSaving, setIsThriposhaSaving] = useState(false);
 
   // Dialog Modals
   const [isMeasureModalOpen, setIsMeasureModalOpen] = useState(false);
@@ -198,6 +205,18 @@ export default function ChildProfile() {
             });
           });
         }
+        if (childData.doctorAssessments && childData.doctorAssessments.length > 0) {
+          childData.doctorAssessments.forEach(ass => {
+            visitList.push({
+              date: new Date(ass.date).toISOString().split('T')[0],
+              midwife: ass.doctorName || 'Dr. Nimal Silva',
+              weight: 'N/A',
+              height: 'N/A',
+              type: 'Medical Consultation',
+              note: `Diagnosis: ${ass.diagnosis}. Treatment: ${ass.treatment}.${ass.remarks ? ' Remarks: ' + ass.remarks : ''}`
+            });
+          });
+        }
         visitList.sort((a, b) => new Date(b.date) - new Date(a.date));
         setVisits(visitList.length > 0 ? visitList : INITIAL_VISITS);
 
@@ -276,6 +295,150 @@ export default function ChildProfile() {
     } catch (err) {
       console.error(err);
       alert("Error saving vaccine administration to database.");
+    }
+  };
+
+  const handleSaveThriposha = async (e) => {
+    e.preventDefault();
+    if (!thriposhaPackets) return;
+
+    setIsThriposhaSaving(true);
+    try {
+      await axios.post(`http://localhost:5000/api/children/${id}/thriposha`, {
+        date: new Date().toISOString().split('T')[0],
+        packetsIssued: Number(thriposhaPackets),
+        batchNo: thriposhaBatchNo,
+        remarks: thriposhaRemarks
+      });
+      alert("Thriposha distribution successfully logged.");
+      setThriposhaPackets(2);
+      setThriposhaBatchNo('');
+      setThriposhaRemarks('');
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Error saving Thriposha distribution details.");
+    } finally {
+      setIsThriposhaSaving(false);
+    }
+  };
+
+  const calculateThriposhaEligibility = () => {
+    const ageMonths = childAgeMonths;
+    const records = child ? (child.growthRecords || []) : [];
+    
+    if (ageMonths < 6) {
+      return {
+        eligible: false,
+        reason: "Under 6 Months",
+        description: "Thriposha is not recommended for infants under 6 months due to exclusive breastfeeding guidelines.",
+        badgeColor: "bg-slate-100 text-slate-700 border-slate-200"
+      };
+    }
+    
+    if (ageMonths > 60) {
+      return {
+        eligible: false,
+        reason: "Over 5 Years (60 Months)",
+        description: "Child has outgrown the national supplement program eligibility window.",
+        badgeColor: "bg-slate-100 text-slate-700 border-slate-200"
+      };
+    }
+
+    if (ageMonths >= 6 && ageMonths <= 12) {
+      return {
+        eligible: true,
+        reason: "Routine (6-12 Months)",
+        description: "All Sri Lankan infants in the 6-12 month age range are routinely recommended 2 packets of Thriposha monthly.",
+        badgeColor: "bg-green-100 text-green-800 border-green-200 border"
+      };
+    }
+
+    let isUnderweight = false;
+    let isFaltering = false;
+    let velocityText = "Normal";
+
+    if (records.length > 0) {
+      const latest = records[records.length - 1];
+      const bmiStatusObj = getBmiStatus(calculatedBMI, ageMonths, child.gender);
+      if (latest.weight < 9.5 || bmiStatusObj.text === "Underweight") {
+        isUnderweight = true;
+      }
+
+      if (records.length >= 2) {
+        const prev = records[records.length - 2];
+        const weightDiff = latest.weight - prev.weight;
+        if (weightDiff <= 0) {
+          isFaltering = true;
+          velocityText = `${weightDiff.toFixed(2)} kg (Faltering)`;
+        } else {
+          velocityText = `+${weightDiff.toFixed(2)} kg (Normal)`;
+        }
+      }
+    }
+
+    if (isUnderweight && isFaltering) {
+      return {
+        eligible: true,
+        reason: "Underweight & Growth Faltering (12-60 Months)",
+        description: "Eligible due to underweight measurements combined with decelerated/flat weight velocity.",
+        badgeColor: "bg-red-100 text-red-800 border-red-200 border",
+        velocity: velocityText
+      };
+    }
+
+    if (isUnderweight) {
+      return {
+        eligible: true,
+        reason: "Underweight Status (12-60 Months)",
+        description: "Eligible due to weight-for-age falling below standard WHO percentile limits.",
+        badgeColor: "bg-orange-100 text-orange-800 border-orange-200 border",
+        velocity: velocityText
+      };
+    }
+
+    if (isFaltering) {
+      return {
+        eligible: true,
+        reason: "Growth Faltering Alert (12-60 Months)",
+        description: "Eligible because weight gain is flat or declining over consecutive measurements.",
+        badgeColor: "bg-amber-100 text-amber-800 border-amber-200 border",
+        velocity: velocityText
+      };
+    }
+
+    return {
+      eligible: false,
+      reason: "Healthy Development Status",
+      description: "Child exhibits normal growth parameters, and age is above 12 months. No active Thriposha requirement.",
+      badgeColor: "bg-slate-100 text-slate-500 border-slate-200 border",
+      velocity: velocityText
+    };
+  };
+
+  const getGrowthVelocity = () => {
+    const records = child ? (child.growthRecords || []) : [];
+    if (records.length < 2) return { text: "Insufficient data (Requires 2+ measurements)", color: "text-slate-400" };
+    
+    const latest = records[records.length - 1];
+    const prev = records[records.length - 2];
+    const weightDiff = latest.weight - prev.weight;
+    
+    if (weightDiff < 0) {
+      return {
+        text: `Declining: ${weightDiff.toFixed(2)} kg since last check-up`,
+        color: "text-red-600 font-bold"
+      };
+    } else if (weightDiff === 0) {
+      return {
+        text: "Flat: No weight gain since last check-up",
+        color: "text-amber-600 font-bold"
+      };
+    } else {
+      return {
+        text: `Healthy: +${weightDiff.toFixed(2)} kg weight gain`,
+        color: "text-green-600 font-bold"
+      };
     }
   };
 
@@ -494,11 +657,25 @@ export default function ChildProfile() {
               <Home size={16} />
               <span>Midwife Dashboard</span>
             </li>
-            <li className="active flex items-center gap-2.5 px-4 py-3 rounded-lg bg-[#1D61FF] text-white font-semibold text-xs uppercase tracking-wider">
+            <li
+              onClick={() => setActiveSidebarTab('Profile')}
+              className={`flex items-center gap-2.5 px-4 py-3 rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
+                activeSidebarTab === 'Profile'
+                  ? 'bg-[#1D61FF] text-white'
+                  : 'hover:bg-white/5 text-slate-400 hover:text-white'
+              }`}
+            >
               <User size={16} />
               <span>Child Health Profile</span>
             </li>
-            <li className="flex items-center gap-2.5 px-4 py-3 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer">
+            <li
+              onClick={() => setActiveSidebarTab('GrowthAnalytics')}
+              className={`flex items-center gap-2.5 px-4 py-3 rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
+                activeSidebarTab === 'GrowthAnalytics'
+                  ? 'bg-[#1D61FF] text-white'
+                  : 'hover:bg-white/5 text-slate-400 hover:text-white'
+              }`}
+            >
               <Activity size={16} />
               <span>Growth Analytics</span>
             </li>
@@ -615,278 +792,472 @@ export default function ChildProfile() {
         </section>
 
         {/* Main Columns Split Grid (65% Left, 35% Right) */}
-        <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
+        {activeSidebarTab === 'Profile' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
 
-          {/* Left Column: Growth Tracking and Clinic Timeline (65%) */}
-          <div className="lg:col-span-6 flex flex-col gap-6">
+            {/* Left Column: Growth Tracking and Clinic Timeline (65%) */}
+            <div className="lg:col-span-6 flex flex-col gap-6">
 
-            {/* Growth Tracking Card */}
-            <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden flex flex-col">
-              <div className="p-5 border-b border-[#E2E8F0] flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-                <div>
-                  <h2 className="text-base font-bold text-[#0F172A]">WHO Growth Charts & Statistics</h2>
-                  <p className="text-xs text-slate-500">Weight-for-Age, Height-for-Age and BMI velocity trends</p>
-                </div>
-
-                <button
-                  onClick={() => setIsMeasureModalOpen(true)}
-                  className="bg-[#1D61FF] hover:bg-[#1D61FF]/90 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-blue-500/10"
-                >
-                  <Plus size={14} />
-                  <span>Log Measurement</span>
-                </button>
-              </div>
-
-              {/* Tabs list */}
-              <div className="flex border-b border-[#E2E8F0] bg-slate-50/50">
-                {['Weight', 'Height', 'BMI'].map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveChartTab(tab)}
-                    className={`flex-1 py-3 text-xs font-bold border-b-2 text-center transition-all ${activeChartTab === tab
-                      ? 'border-b-[#1D61FF] text-[#1D61FF]'
-                      : 'border-b-transparent text-slate-500 hover:text-[#0F172A]'
-                      }`}
-                  >
-                    {tab === 'Weight' ? 'Weight-for-Age' : tab === 'Height' ? 'Height-for-Age' : 'BMI Chart'}
-                  </button>
-                ))}
-              </div>
-
-              {/* Recharts AreaChart with actual WHO percentile bands */}
-              <div className="p-5">
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
-                      data={activeChartTab === 'Weight' ? weightData : activeChartTab === 'Height' ? heightData : bmiData}
-                      margin={{ top: 10, right: 10, left: -25, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                      <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="#94A3B8" />
-                      <YAxis tick={{ fontSize: 10 }} stroke="#94A3B8" />
-                      <RechartsTooltip
-                        contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '8px', fontSize: '11px', border: 'none' }}
-                        labelStyle={{ fontWeight: 'bold', color: '#1D61FF' }}
-                      />
-                      <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '15px' }} />
-
-                      {/* Percentile Bands (Reference areas shaded) */}
-                      <Area type="monotone" dataKey="p97" name="97th Percentile" stroke="#EF4444" strokeWidth={1} strokeDasharray="3 3" fill="none" />
-                      <Area type="monotone" dataKey="p85" name="85th Percentile" stroke="#F59E0B" strokeWidth={1} strokeDasharray="3 3" fill="none" />
-                      <Area type="monotone" dataKey="p50" name="WHO Median (50th)" stroke="#10B981" strokeWidth={1.5} strokeDasharray="4 4" fill="none" />
-                      <Area type="monotone" dataKey="p15" name="15th Percentile" stroke="#F59E0B" strokeWidth={1} strokeDasharray="3 3" fill="none" />
-                      <Area type="monotone" dataKey="p3" name="3rd Percentile" stroke="#EF4444" strokeWidth={1.5} strokeDasharray="2 2" fill="none" />
-
-                      {/* Active Child Curve */}
-                      <Area
-                        type="monotone"
-                        dataKey={activeChartTab === 'Weight' ? 'weight' : activeChartTab === 'Height' ? 'height' : 'bmi'}
-                        name={activeChartTab === 'Weight' ? 'Child Weight (kg)' : activeChartTab === 'Height' ? 'Child Height (cm)' : 'BMI Value'}
-                        stroke="#1D61FF"
-                        strokeWidth={3}
-                        fill="url(#colorVal)"
-                      />
-
-                      <defs>
-                        <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#1D61FF" stopOpacity={0.15} />
-                          <stop offset="95%" stopColor="#1D61FF" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-
-            {/* Clinic Visit Timeline */}
-            <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm p-5">
-              <div className="mb-4">
-                <h3 className="text-base font-bold text-[#0F172A]">Clinic Visit Timeline</h3>
-                <p className="text-xs text-slate-500">Audit ledger of past midwife and clinical records</p>
-              </div>
-
-              <div className="relative border-l border-slate-200 ml-3 pl-6 space-y-6">
-                {visits.map((visit, idx) => (
-                  <div key={idx} className="relative">
-                    {/* Color-coded dot rail indicator */}
-                    <span className={`absolute -left-[30px] top-1.5 w-3 h-3 rounded-full border-2 border-white ring-4 ${visit.type === 'Routine'
-                      ? 'bg-blue-600 ring-blue-100'
-                      : visit.type === 'Vaccine'
-                        ? 'bg-green-600 ring-green-100'
-                        : 'bg-orange-500 ring-orange-100'
-                      }`}></span>
-
-                    <div className="flex justify-between items-start gap-4 flex-wrap">
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{visit.date}</span>
-                        <h4 className="text-xs font-bold text-slate-800 mt-0.5">Clinic Visit: {visit.type} Checkup</h4>
-                        <div className="text-[10px] text-slate-500 mt-0.5">Recorded by midwife: {visit.midwife}</div>
-                      </div>
-                      <div className="bg-slate-50 border border-[#E2E8F0] rounded-lg px-2.5 py-1 text-right text-[10px] font-semibold text-slate-700">
-                        <span>W: {visit.weight}kg</span>
-                        <span className="mx-1 text-slate-300">|</span>
-                        <span>H: {visit.height}cm</span>
-                      </div>
-                    </div>
-
-                    <div className="bg-slate-50 rounded-xl p-3 border border-[#E2E8F0]/80 mt-2 text-xs text-slate-600 leading-relaxed font-medium">
-                      {visit.note}
-                    </div>
+              {/* Growth Tracking Card */}
+              <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                <div className="p-5 border-b border-[#E2E8F0] flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                  <div>
+                    <h2 className="text-base font-bold text-[#0F172A]">WHO Growth Charts & Statistics</h2>
+                    <p className="text-xs text-slate-500">Weight-for-Age, Height-for-Age and BMI velocity trends</p>
                   </div>
-                ))}
-              </div>
-            </div>
 
-          </div>
-
-          {/* Right Column: Health Alerts, Vaccination Checklist & Next Appointments (35%) */}
-          <div className="lg:col-span-4 flex flex-col gap-6">
-
-            {/* Health Alerts Card (Green Pastel background style) */}
-            <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-5 shadow-sm">
-              <div className="flex items-center gap-2 mb-4">
-                <ShieldAlert className="text-emerald-700" size={18} />
-                <h3 className="text-sm font-bold text-emerald-800 uppercase tracking-wider">Health Indicators & Alerts</h3>
-              </div>
-
-              {/* Grid of 4 indicators */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-white border border-emerald-100 p-3 rounded-xl text-center">
-                  <span className="text-[10px] text-slate-400 block font-bold">Stunting Risk</span>
-                  <span className={`text-xs font-bold ${stuntingRiskObj.color} mt-1 inline-block`}>{stuntingRiskObj.text}</span>
-                </div>
-                <div className="bg-white border border-emerald-100 p-3 rounded-xl text-center">
-                  <span className="text-[10px] text-slate-400 block font-bold">Wasting Score</span>
-                  <span className={`text-xs font-bold ${wastingStatusObj.color} mt-1 inline-block`}>{wastingStatusObj.text}</span>
-                </div>
-                <div className="bg-white border border-emerald-100 p-3 rounded-xl text-center">
-                  <span className="text-[10px] text-slate-400 block font-bold">Weight drop alert</span>
-                  <span className={`text-xs font-bold ${weightDropActive ? 'text-red-600' : 'text-green-700'} mt-1 inline-block`}>
-                    {weightDropActive ? 'Triggered' : 'Stable'}
-                  </span>
-                </div>
-                <div className="bg-white border border-emerald-100 p-3 rounded-xl text-center">
-                  <span className="text-[10px] text-slate-400 block font-bold">Severe illnesses</span>
-                  <span className={`text-xs font-bold ${severeIllnessObj.color} mt-1 inline-block`}>{severeIllnessObj.text}</span>
-                </div>
-              </div>
-
-              {/* Editable Midwife observations */}
-              <div>
-                <label className="block text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2">Midwife Observations & Notes</label>
-                <textarea
-                  rows="3"
-                  value={observations}
-                  onChange={(e) => setObservations(e.target.value)}
-                  className="w-full bg-white border border-emerald-100 rounded-xl p-3 text-xs text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-                <button
-                  onClick={handleSaveObservations}
-                  disabled={isObsSaving}
-                  className="mt-3 w-full bg-[#10B981] hover:bg-[#059669] text-white text-xs font-bold py-2 rounded-xl transition-all shadow-md shadow-emerald-500/10"
-                >
-                  {isObsSaving ? 'Saving...' : 'Update Observations'}
-                </button>
-              </div>
-            </div>
-
-            {/* Vaccination Checklist Card */}
-            <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-sm flex flex-col">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-sm font-bold text-[#0F172A]">Vaccination Tracker</h3>
-                  <p className="text-xs text-slate-500">National Immunization Ledger</p>
-                </div>
-
-                <button
-                  onClick={() => setIsVaccineModalOpen(true)}
-                  className="bg-slate-100 hover:bg-slate-200 text-[#1D61FF] text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg transition-all"
-                >
-                  Administer
-                </button>
-              </div>
-
-              {/* Progress bar */}
-              <div className="mb-4 bg-slate-50 border border-slate-200/60 p-3 rounded-xl">
-                <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
-                  <span>Completed Immunizations</span>
-                  <span>{completedVaccinesCount}/{vaccines.length} ({vaccineProgressPercent}%)</span>
-                </div>
-                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                  <div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${vaccineProgressPercent}%` }}></div>
-                </div>
-              </div>
-
-              {/* Filter pills */}
-              <div className="flex gap-1 mb-4 flex-wrap">
-                {['All', 'Completed', 'Due', 'Upcoming'].map(f => (
                   <button
-                    key={f}
-                    onClick={() => setVaccineFilter(f)}
-                    className={`text-[10px] font-bold px-2.5 py-1.5 rounded-full border transition-all ${vaccineFilter === f
-                      ? 'bg-[#0F172A] text-white border-[#0F172A]'
-                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                      }`}
+                    onClick={() => setIsMeasureModalOpen(true)}
+                    className="bg-[#1D61FF] hover:bg-[#1D61FF]/90 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-blue-500/10"
                   >
-                    {f}
+                    <Plus size={14} />
+                    <span>Log Measurement</span>
                   </button>
-                ))}
+                </div>
+
+                {/* Tabs list */}
+                <div className="flex border-b border-[#E2E8F0] bg-slate-50/50">
+                  {['Weight', 'Height', 'BMI'].map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveChartTab(tab)}
+                      className={`flex-1 py-3 text-xs font-bold border-b-2 text-center transition-all ${activeChartTab === tab
+                        ? 'border-b-[#1D61FF] text-[#1D61FF]'
+                        : 'border-b-transparent text-slate-500 hover:text-[#0F172A]'
+                        }`}
+                    >
+                      {tab === 'Weight' ? 'Weight-for-Age' : tab === 'Height' ? 'Height-for-Age' : 'BMI Chart'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Recharts AreaChart with actual WHO percentile bands */}
+                <div className="p-5">
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart
+                        data={activeChartTab === 'Weight' ? weightData : activeChartTab === 'Height' ? heightData : bmiData}
+                        margin={{ top: 10, right: 10, left: -25, bottom: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                        <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                        <YAxis tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                        <RechartsTooltip
+                          contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '8px', fontSize: '11px', border: 'none' }}
+                          labelStyle={{ fontWeight: 'bold', color: '#1D61FF' }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '15px' }} />
+
+                        {/* Percentile Bands (Reference areas shaded) */}
+                        <Area type="monotone" dataKey="p97" name="97th Percentile" stroke="#EF4444" strokeWidth={1} strokeDasharray="3 3" fill="none" />
+                        <Area type="monotone" dataKey="p85" name="85th Percentile" stroke="#F59E0B" strokeWidth={1} strokeDasharray="3 3" fill="none" />
+                        <Area type="monotone" dataKey="p50" name="WHO Median (50th)" stroke="#10B981" strokeWidth={1.5} strokeDasharray="4 4" fill="none" />
+                        <Area type="monotone" dataKey="p15" name="15th Percentile" stroke="#F59E0B" strokeWidth={1} strokeDasharray="3 3" fill="none" />
+                        <Area type="monotone" dataKey="p3" name="3rd Percentile" stroke="#EF4444" strokeWidth={1.5} strokeDasharray="2 2" fill="none" />
+
+                        {/* Active Child Curve */}
+                        <Area
+                          type="monotone"
+                          dataKey={activeChartTab === 'Weight' ? 'weight' : activeChartTab === 'Height' ? 'height' : 'bmi'}
+                          name={activeChartTab === 'Weight' ? 'Child Weight (kg)' : activeChartTab === 'Height' ? 'Child Height (cm)' : 'BMI Value'}
+                          stroke="#1D61FF"
+                          strokeWidth={3}
+                          fill="url(#colorVal)"
+                        />
+
+                        <defs>
+                          <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#1D61FF" stopOpacity={0.15} />
+                            <stop offset="95%" stopColor="#1D61FF" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
               </div>
 
-              {/* Vaccine checklist */}
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {filteredVaccines.map((vac) => (
-                  <div key={vac.id} className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200/50">
-                    <div>
-                      <span className="text-[11px] font-bold text-slate-700 block">{vac.name}</span>
-                      {vac.status === 'Completed' && (
-                        <span className="text-[9px] text-slate-400 block">Given: {vac.date}</span>
-                      )}
+              {/* Clinic Visit Timeline */}
+              <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm p-5">
+                <div className="mb-4">
+                  <h3 className="text-base font-bold text-[#0F172A]">Clinic Visit Timeline</h3>
+                  <p className="text-xs text-slate-500">Audit ledger of past midwife and clinical records</p>
+                </div>
+
+                <div className="relative border-l border-slate-200 ml-3 pl-6 space-y-6">
+                  {visits.map((visit, idx) => (
+                    <div key={idx} className="relative">
+                      {/* Color-coded dot rail indicator */}
+                      <span className={`absolute -left-[30px] top-1.5 w-3 h-3 rounded-full border-2 border-white ring-4 ${visit.type === 'Routine'
+                        ? 'bg-blue-600 ring-blue-100'
+                        : visit.type === 'Vaccine'
+                          ? 'bg-green-600 ring-green-100'
+                          : 'bg-orange-500 ring-orange-100'
+                        }`}></span>
+
+                      <div className="flex justify-between items-start gap-4 flex-wrap">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{visit.date}</span>
+                          <h4 className="text-xs font-bold text-slate-800 mt-0.5">Clinic Visit: {visit.type} Checkup</h4>
+                          <div className="text-[10px] text-slate-500 mt-0.5">Recorded by midwife: {visit.midwife}</div>
+                        </div>
+                        <div className="bg-slate-50 border border-[#E2E8F0] rounded-lg px-2.5 py-1 text-right text-[10px] font-semibold text-slate-700">
+                          <span>W: {visit.weight}kg</span>
+                          <span className="mx-1 text-slate-300">|</span>
+                          <span>H: {visit.height}cm</span>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-50 rounded-xl p-3 border border-[#E2E8F0]/80 mt-2 text-xs text-slate-600 leading-relaxed font-medium">
+                        {visit.note}
+                      </div>
                     </div>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${vac.status === 'Completed'
-                      ? 'bg-green-100 text-green-700 border border-green-200'
-                      : vac.status === 'Due'
-                        ? 'bg-red-100 text-red-700 border border-red-200'
-                        : 'bg-blue-100 text-blue-700 border border-blue-200'
-                      }`}>
-                      {vac.status}
+                  ))}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Right Column: Health Alerts, Vaccination Checklist & Next Appointments (35%) */}
+            <div className="lg:col-span-4 flex flex-col gap-6">
+
+              {/* Health Alerts Card (Green Pastel background style) */}
+              <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <ShieldAlert className="text-emerald-700" size={18} />
+                  <h3 className="text-sm font-bold text-emerald-800 uppercase tracking-wider">Health Indicators & Alerts</h3>
+                </div>
+
+                {/* Grid of 4 indicators */}
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-white border border-emerald-100 p-3 rounded-xl text-center">
+                    <span className="text-[10px] text-slate-400 block font-bold">Stunting Risk</span>
+                    <span className={`text-xs font-bold ${stuntingRiskObj.color} mt-1 inline-block`}>{stuntingRiskObj.text}</span>
+                  </div>
+                  <div className="bg-white border border-emerald-100 p-3 rounded-xl text-center">
+                    <span className="text-[10px] text-slate-400 block font-bold">Wasting Score</span>
+                    <span className={`text-xs font-bold ${wastingStatusObj.color} mt-1 inline-block`}>{wastingStatusObj.text}</span>
+                  </div>
+                  <div className="bg-white border border-emerald-100 p-3 rounded-xl text-center">
+                    <span className="text-[10px] text-slate-400 block font-bold">Weight drop alert</span>
+                    <span className={`text-xs font-bold ${weightDropActive ? 'text-red-600' : 'text-green-700'} mt-1 inline-block`}>
+                      {weightDropActive ? 'Triggered' : 'Stable'}
                     </span>
                   </div>
-                ))}
+                  <div className="bg-white border border-emerald-100 p-3 rounded-xl text-center">
+                    <span className="text-[10px] text-slate-400 block font-bold">Severe illnesses</span>
+                    <span className={`text-xs font-bold ${severeIllnessObj.color} mt-1 inline-block`}>{severeIllnessObj.text}</span>
+                  </div>
+                </div>
+
+                {/* Editable Midwife observations */}
+                <div>
+                  <label className="block text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2">Midwife Observations & Notes</label>
+                  <textarea
+                    rows="3"
+                    value={observations}
+                    onChange={(e) => setObservations(e.target.value)}
+                    className="w-full bg-white border border-emerald-100 rounded-xl p-3 text-xs text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <button
+                    onClick={handleSaveObservations}
+                    disabled={isObsSaving}
+                    className="mt-3 w-full bg-[#10B981] hover:bg-[#059669] text-white text-xs font-bold py-2 rounded-xl transition-all shadow-md shadow-emerald-500/10"
+                  >
+                    {isObsSaving ? 'Saving...' : 'Update Observations'}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {/* Upcoming Appointments mini-list */}
-            <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-sm">
-              <h3 className="text-sm font-bold text-[#0F172A] mb-3">Clinic Appointments</h3>
+              {/* Vaccination card */}
+              <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-sm">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider">Immunization Status</h3>
+                    <p className="text-[10px] text-slate-400">Sri Lankan National Immunization Schedule</p>
+                  </div>
 
-              <div className="space-y-3">
-                {upcomingAppointments.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic text-center py-4">No upcoming scheduled appointments.</p>
-                ) : (
-                  upcomingAppointments.map((appt, idx) => (
-                    <div key={idx} className="flex gap-3 bg-slate-50 p-3 rounded-xl border border-[#E2E8F0]/70">
-                      <div className={`w-8 h-8 rounded-full ${appt.color} flex items-center justify-center shrink-0`}>
-                        {appt.icon}
-                      </div>
+                  <button
+                    onClick={() => setIsVaccineModalOpen(true)}
+                    className="bg-slate-100 hover:bg-slate-200 text-[#1D61FF] text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg transition-all"
+                  >
+                    Administer
+                  </button>
+                </div>
+
+                {/* Progress bar */}
+                <div className="mb-4 bg-slate-50 border border-slate-200/60 p-3 rounded-xl">
+                  <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
+                    <span>Completed Immunizations</span>
+                    <span>{completedVaccinesCount}/{vaccines.length} ({vaccineProgressPercent}%)</span>
+                  </div>
+                  <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                    <div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${vaccineProgressPercent}%` }}></div>
+                  </div>
+                </div>
+
+                {/* Filter pills */}
+                <div className="flex gap-1 mb-4 flex-wrap">
+                  {['All', 'Completed', 'Due', 'Upcoming'].map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setVaccineFilter(f)}
+                      className={`text-[10px] font-bold px-2.5 py-1.5 rounded-full border transition-all ${vaccineFilter === f
+                        ? 'bg-[#0F172A] text-white border-[#0F172A]'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Vaccine checklist */}
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {filteredVaccines.map((vac) => (
+                    <div key={vac.id} className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200/50">
                       <div>
-                        <h4 className="text-xs font-bold text-slate-800">{appt.title}</h4>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{appt.date} • {appt.location}</p>
+                        <span className="text-[11px] font-bold text-slate-700 block">{vac.name}</span>
+                        {vac.status === 'Completed' && (
+                          <span className="text-[9px] text-slate-400 block">Given: {vac.date}</span>
+                        )}
                       </div>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${vac.status === 'Completed'
+                        ? 'bg-green-100 text-green-700 border border-green-200'
+                        : vac.status === 'Due'
+                          ? 'bg-red-100 text-red-700 border border-red-200'
+                          : 'bg-blue-100 text-blue-700 border border-blue-200'
+                        }`}>
+                        {vac.status}
+                      </span>
                     </div>
-                  ))
-                )}
+                  ))}
+                </div>
               </div>
+
+              {/* Upcoming Appointments mini-list */}
+              <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-sm">
+                <h3 className="text-sm font-bold text-[#0F172A] mb-3">Clinic Appointments</h3>
+
+                <div className="space-y-3">
+                  {upcomingAppointments.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic text-center py-4">No upcoming scheduled appointments.</p>
+                  ) : (
+                    upcomingAppointments.map((appt, idx) => (
+                      <div key={idx} className="flex gap-3 bg-slate-50 p-3 rounded-xl border border-[#E2E8F0]/70">
+                        <div className={`w-8 h-8 rounded-full ${appt.color} flex items-center justify-center shrink-0`}>
+                          {appt.icon}
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-800">{appt.title}</h4>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{appt.date} • {appt.location}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
             </div>
 
           </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 animate-fadeIn">
+            {/* Left Column: Eligibility assessment, Velocity & Distribution History (65%) */}
+            <div className="lg:col-span-6 flex flex-col gap-6">
+              
+              {/* Thriposha Eligibility Card */}
+              <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm p-6">
+                <div className="flex justify-between items-start gap-4 flex-wrap mb-4">
+                  <div>
+                    <h3 className="text-base font-bold text-[#0F172A]">Thriposha Supplement Eligibility</h3>
+                    <p className="text-xs text-slate-500 font-medium">Clinical evaluation according to Sri Lankan MOH guidelines</p>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${calculateThriposhaEligibility().badgeColor}`}>
+                    {calculateThriposhaEligibility().reason}
+                  </span>
+                </div>
 
-        </div>
+                <div className="bg-slate-50 border border-[#E2E8F0]/80 rounded-xl p-4 mb-4">
+                  <div className="flex items-start gap-3">
+                    <span className="text-lg">ℹ️</span>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Evaluation Result</h4>
+                      <p className="text-xs text-slate-600 mt-1 font-medium leading-relaxed">{calculateThriposhaEligibility().description}</p>
+                    </div>
+                  </div>
+                </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-50 border border-slate-200/50 rounded-xl p-3 text-center">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Recommended Dose</span>
+                    <strong className="text-sm text-slate-800 block mt-1">
+                      {calculateThriposhaEligibility().eligible ? "2 packets / Month (1.5 kg total)" : "0 packets"}
+                    </strong>
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200/50 rounded-xl p-3 text-center">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Growth Velocity status</span>
+                    <strong className={`text-sm block mt-1 ${getGrowthVelocity().color}`}>
+                      {getGrowthVelocity().text.split(':')[0]}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Growth Velocity Card */}
+              <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm p-6">
+                <h3 className="text-base font-bold text-[#0F172A] mb-1">Growth Velocity Analysis</h3>
+                <p className="text-xs text-slate-500 mb-4">Tracking monthly changes in child weight to detect growth faltering</p>
+                
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-200/50">
+                    <div>
+                      <span className="text-xs font-bold text-slate-700 block">Growth Trend Indicator</span>
+                      <span className="text-[11px] text-slate-500 block mt-0.5">Calculated based on the last two clinical measurement visits</span>
+                    </div>
+                    <span className={`text-xs ${getGrowthVelocity().color}`}>
+                      {getGrowthVelocity().text}
+                    </span>
+                  </div>
+
+                  {/* Growth History Table for Velocity Reference */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left text-slate-600 border-collapse">
+                      <thead>
+                        <tr className="border-b border-[#E2E8F0] text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          <th className="py-2.5">Interval</th>
+                          <th className="py-2.5">Date</th>
+                          <th className="py-2.5 text-right">Weight</th>
+                          <th className="py-2.5 text-right">Height</th>
+                          <th className="py-2.5 text-right">BMI</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {child.growthRecords && child.growthRecords.length > 0 ? (
+                          [...child.growthRecords].reverse().map((rec, i) => (
+                            <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 font-medium">
+                              <td className="py-3 font-bold text-slate-800">{rec.ageInterval}</td>
+                              <td className="py-3 text-slate-500">{new Date(rec.date).toLocaleDateString()}</td>
+                              <td className="py-3 text-right text-slate-800">{rec.weight} kg</td>
+                              <td className="py-3 text-right text-slate-800">{rec.height} cm</td>
+                              <td className="py-3 text-right text-slate-500">{rec.bmi}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan="5" className="text-center py-6 text-slate-400 italic">No measurement logs available.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Thriposha Distribution Ledger */}
+              <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm p-6">
+                <h3 className="text-base font-bold text-[#0F172A] mb-1">Thriposha Distribution Ledger</h3>
+                <p className="text-xs text-slate-500 mb-4 font-medium">Official registry of supplementary food package issuances</p>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left text-slate-600 border-collapse">
+                    <thead>
+                      <tr className="border-b border-[#E2E8F0] text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        <th className="py-2.5">Distribution Date</th>
+                        <th className="py-2.5 text-center">Packets Issued</th>
+                        <th className="py-2.5">Batch Number</th>
+                        <th className="py-2.5">Remarks / Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {child.thriposhaHistory && child.thriposhaHistory.length > 0 ? (
+                        [...child.thriposhaHistory].reverse().map((entry, i) => (
+                          <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 font-medium">
+                            <td className="py-3 font-bold text-slate-800">
+                              {new Date(entry.date).toLocaleDateString()}
+                            </td>
+                            <td className="py-3 text-center text-[#1D61FF] font-bold">
+                              {entry.packetsIssued} Packets
+                            </td>
+                            <td className="py-3 font-mono text-slate-500">
+                              {entry.batchNo || "N/A"}
+                            </td>
+                            <td className="py-3 text-slate-600">
+                              {entry.remarks || "No remarks"}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="4" className="text-center py-6 text-slate-400 italic">
+                            No Thriposha distributions logged yet.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Right Column: Log Distribution Form (35%) */}
+            <div className="lg:col-span-4 flex flex-col gap-6">
+              
+              <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-sm">
+                <h3 className="text-sm font-bold text-[#0F172A] mb-1 uppercase tracking-wider">Log Thriposha Distribution</h3>
+                <p className="text-xs text-slate-500 mb-4 font-medium">Record packets issued during the current visit</p>
+
+                <form onSubmit={handleSaveThriposha} className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Packets Issued</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      value={thriposhaPackets}
+                      onChange={(e) => setThriposhaPackets(e.target.value)}
+                      placeholder="e.g. 2"
+                      className="w-full text-xs bg-white border border-[#E2E8F0] rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-[#1D61FF]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Batch Number</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. TR-2026/05B"
+                      value={thriposhaBatchNo}
+                      onChange={(e) => setThriposhaBatchNo(e.target.value)}
+                      className="w-full text-xs bg-white border border-[#E2E8F0] rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-[#1D61FF]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Remarks / Special Notes</label>
+                    <textarea
+                      placeholder="Enter midwife instructions or compliance remarks..."
+                      rows={3}
+                      value={thriposhaRemarks}
+                      onChange={(e) => setThriposhaRemarks(e.target.value)}
+                      className="w-full text-xs bg-white border border-[#E2E8F0] rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-[#1D61FF] resize-none"
+                    ></textarea>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isThriposhaSaving}
+                    className="w-full bg-[#1D61FF] hover:bg-[#1D61FF]/90 text-white font-bold text-xs py-3 rounded-xl transition-all shadow-md shadow-blue-500/10 flex items-center justify-center gap-1.5 disabled:bg-slate-400 cursor-pointer"
+                  >
+                    <span>{isThriposhaSaving ? "Logging..." : "Log Distribution"}</span>
+                  </button>
+                </form>
+              </div>
+
+            </div>
+          </div>
+        )}
       </main>
-
-      {/* 1. Print QR Code Modal */}
       {isQRModalOpen && (
         <div className="modal-overlay fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl">
