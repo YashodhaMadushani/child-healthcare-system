@@ -20,9 +20,10 @@ import {
   BarChart2,
   TrendingUp,
   Download,
-  AlertCircle
+  AlertCircle,
+  Printer
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import './Dashboard.css';
 
 export default function DoctorDashboard() {
@@ -34,12 +35,41 @@ export default function DoctorDashboard() {
   const [toastMessage, setToastMessage] = useState(null);
 
   // My Consultations View State
-  const [currentView, setCurrentView] = useState('dashboard'); // dashboard, consultations
+  const [currentView, setCurrentView] = useState('dashboard'); // dashboard, consultations, growth-charts
   const [reviewedConsultations, setReviewedConsultations] = useState([]);
   const [loadingReviewed, setLoadingReviewed] = useState(false);
   const [selectedReviewed, setSelectedReviewed] = useState(null);
   const [consultationSearch, setConsultationSearch] = useState('');
   const [consultationFilter, setConsultationFilter] = useState('All');
+
+  // Growth Charts View State
+  const [childrenList, setChildrenList] = useState([]);
+  const [selectedChildForCharts, setSelectedChildForCharts] = useState(null);
+  const [loadingChildren, setLoadingChildren] = useState(false);
+  const [childSearchTerm, setChildSearchTerm] = useState('');
+  const [activeChartTab, setActiveChartTab] = useState('Weight'); // Weight, Height, BMI
+  const [chartWeightData, setChartWeightData] = useState([]);
+  const [chartHeightData, setChartHeightData] = useState([]);
+  const [chartBmiData, setChartBmiData] = useState([]);
+
+  // Clinic Referrals View State
+  const [clinicReferralsList, setClinicReferralsList] = useState([]);
+  const [loadingReferrals, setLoadingReferrals] = useState(false);
+  const [referralSearchTerm, setReferralSearchTerm] = useState('');
+  const [selectedReferralForLetter, setSelectedReferralForLetter] = useState(null);
+
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user')) || {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  const getInitials = (fullName) => {
+    if (!fullName) return 'DR';
+    return fullName.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  };
 
   // Form Fields
   const [diagnosis, setDiagnosis] = useState('');
@@ -95,6 +125,85 @@ export default function DoctorDashboard() {
       setLoadingReviewed(false);
     }
   };
+
+  const handleSelectChildForCharts = (childData) => {
+    setSelectedChildForCharts(childData);
+    if (childData.growthRecords && childData.growthRecords.length > 0) {
+      const wLogs = childData.growthRecords.map(r => ({
+        month: r.ageInterval,
+        weight: r.weight,
+        p3: r.ageInterval === '0M' ? 2.4 : 8.8,
+        p15: r.ageInterval === '0M' ? 2.8 : 9.6,
+        p50: r.ageInterval === '0M' ? 3.3 : 10.4,
+        p85: r.ageInterval === '0M' ? 3.9 : 11.4,
+        p97: r.ageInterval === '0M' ? 4.3 : 12.2
+      }));
+      setChartWeightData(wLogs);
+
+      const hLogs = childData.growthRecords.map(r => ({
+        month: r.ageInterval,
+        height: r.height,
+        p3: r.ageInterval === '0M' ? 46.1 : 76.9,
+        p15: r.ageInterval === '0M' ? 48.0 : 79.5,
+        p50: r.ageInterval === '0M' ? 49.9 : 82.0,
+        p85: r.ageInterval === '0M' ? 51.8 : 84.5,
+        p97: r.ageInterval === '0M' ? 53.7 : 87.1
+      }));
+      setChartHeightData(hLogs);
+
+      const bLogs = childData.growthRecords.map(r => ({
+        month: r.ageInterval,
+        bmi: r.bmi,
+        p3: r.ageInterval === '0M' ? 11.1 : 13.1,
+        p15: r.ageInterval === '0M' ? 12.0 : 14.1,
+        p50: r.ageInterval === '0M' ? 13.0 : 15.1,
+        p85: r.ageInterval === '0M' ? 14.1 : 16.3,
+        p97: r.ageInterval === '0M' ? 15.1 : 17.5
+      }));
+      setChartBmiData(bLogs);
+    } else {
+      setChartWeightData([]);
+      setChartHeightData([]);
+      setChartBmiData([]);
+    }
+  };
+
+  const fetchChildrenForCharts = async () => {
+    setLoadingChildren(true);
+    try {
+      const res = await axios.get('http://localhost:5000/api/children');
+      const data = res.data || [];
+      setChildrenList(data);
+      if (data.length > 0) {
+        handleSelectChildForCharts(data[0]);
+      } else {
+        setSelectedChildForCharts(null);
+        setChartWeightData([]);
+        setChartHeightData([]);
+        setChartBmiData([]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch children for charts:", err);
+      showToast("Failed to fetch children records.");
+    } finally {
+      setLoadingChildren(false);
+    }
+  };
+
+
+  const fetchClinicReferrals = async () => {
+    setLoadingReferrals(true);
+    try {
+      const res = await axios.get('http://localhost:5000/api/referrals/specialist-referrals');
+      setClinicReferralsList(res.data || []);
+    } catch (err) {
+      console.error("Failed to fetch clinic referrals:", err);
+      showToast("Failed to load clinic referrals.");
+    } finally {
+      setLoadingReferrals(false);
+    }
+  };
+
 
   useEffect(() => {
     fetchReferrals();
@@ -158,7 +267,7 @@ export default function DoctorDashboard() {
       await axios.post(`http://localhost:5000/api/referrals/${selectedChild._id}/assess`, {
         diagnosis,
         treatment: referToHospital ? `${treatment} (Ref: ${specialistHospital})` : treatment,
-        specialistReferral: referral,
+        specialistReferral: referToHospital ? specialistHospital : 'None',
         parentNotes,
         reviewDate,
         vitals: {
@@ -225,7 +334,6 @@ export default function DoctorDashboard() {
   const criticalCount = queue.filter(p => p.alertLevel === 'Critical').length;
   const pendingCount = queue.length;
   const totalConsultations = queue.length + examinedCount;
-
   const filteredReviewed = reviewedConsultations.filter(item => {
     const nameStr = item.name || '';
     const idStr = item.digitalHealthId || '';
@@ -238,6 +346,24 @@ export default function DoctorDashboard() {
     const matchesFilter = consultationFilter === 'All' || item.alertLevel === consultationFilter;
     
     return matchesSearch && matchesFilter;
+  });
+
+  const filteredChildrenForCharts = childrenList.filter(c => {
+    const nameStr = c.name || '';
+    const idStr = c.digitalHealthId || '';
+    return nameStr.toLowerCase().includes(childSearchTerm.toLowerCase()) ||
+           idStr.toLowerCase().includes(childSearchTerm.toLowerCase());
+  });
+
+  const filteredClinicReferrals = clinicReferralsList.filter(item => {
+    const nameStr = item.name || '';
+    const idStr = item.digitalHealthId || '';
+    const diagStr = item.assessment?.diagnosis || '';
+    const hospStr = item.assessment?.specialistReferral || '';
+    return nameStr.toLowerCase().includes(referralSearchTerm.toLowerCase()) ||
+           idStr.toLowerCase().includes(referralSearchTerm.toLowerCase()) ||
+           diagStr.toLowerCase().includes(referralSearchTerm.toLowerCase()) ||
+           hospStr.toLowerCase().includes(referralSearchTerm.toLowerCase());
   });
 
   return (
@@ -292,11 +418,31 @@ export default function DoctorDashboard() {
               <User size={16} />
               <span>My Consultations</span>
             </li>
-            <li className="flex items-center gap-2.5 px-4 py-3 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer">
+            <li 
+              onClick={() => {
+                setCurrentView('growth-charts');
+                fetchChildrenForCharts();
+              }}
+              className={`flex items-center gap-2.5 px-4 py-3 rounded-lg transition-colors cursor-pointer ${
+                currentView === 'growth-charts'
+                  ? 'bg-[#1D61FF] text-white font-semibold text-xs uppercase tracking-wider'
+                  : 'hover:bg-white/5 text-slate-400 hover:text-white text-xs font-semibold uppercase tracking-wider'
+              }`}
+            >
               <FileText size={16} />
               <span>Growth Charts</span>
             </li>
-            <li className="flex items-center gap-2.5 px-4 py-3 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer">
+            <li 
+              onClick={() => {
+                setCurrentView('clinic-referrals');
+                fetchClinicReferrals();
+              }}
+              className={`flex items-center gap-2.5 px-4 py-3 rounded-lg transition-colors cursor-pointer ${
+                currentView === 'clinic-referrals'
+                  ? 'bg-[#1D61FF] text-white font-semibold text-xs uppercase tracking-wider'
+                  : 'hover:bg-white/5 text-slate-400 hover:text-white text-xs font-semibold uppercase tracking-wider'
+              }`}
+            >
               <Activity size={16} />
               <span>Clinic Referrals</span>
             </li>
@@ -319,18 +465,18 @@ export default function DoctorDashboard() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-[#1D61FF] text-white font-bold flex items-center justify-center text-sm shadow-md">
-                  NS
+                  {getInitials(currentUser.name)}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h1 className="text-xl font-bold text-[#0F172A]">Dr. Nimal Silva</h1>
+                    <h1 className="text-xl font-bold text-[#0F172A]">{currentUser.name || 'Dr. Nimal Silva'}</h1>
                     <span className="bg-[#1D61FF]/10 text-[#1D61FF] text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      Pediatrician
+                      {currentUser.role ? currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1) : 'Pediatrician'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
                     <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block animate-pulse"></span>
-                    <span>MOH Colombo 05 Clinic</span>
+                    <span>{currentUser.assignedClinic || 'MOH Primary Clinic Center'}</span>
                     <span className="text-slate-300">•</span>
                     <Calendar size={13} className="text-slate-400" />
                     <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
@@ -357,7 +503,7 @@ export default function DoctorDashboard() {
                       <span>Clear Queue</span>
                     </button>
                   </>
-                ) : (
+                ) : currentView === 'consultations' ? (
                   <button 
                     onClick={fetchReviewed}
                     className="bg-[#0F172A] hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center gap-1.5"
@@ -365,8 +511,16 @@ export default function DoctorDashboard() {
                     <Clock size={14} />
                     <span>Refresh History</span>
                   </button>
+                ) : (
+                  <button 
+                    onClick={fetchChildrenForCharts}
+                    className="bg-[#0F172A] hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center gap-1.5"
+                  >
+                    <Clock size={14} />
+                    <span>Refresh Children</span>
+                  </button>
                 )}
-                <div className="relative cursor-pointer p-2 bg-white rounded-xl border border-[#E2E8F0] hover:bg-slate-50 transition-all">
+                <div className="relative cursor-pointer p-2 bg-white rounded-xl border border-[#E2E8F0] hover:bg-slate-50 transition-all font-bold">
                   <Bell size={18} className="text-slate-600" />
                   <span className="absolute -top-1 -right-1 w-4.5 h-4.5 bg-red-500 text-white font-extrabold text-[9px] rounded-full flex items-center justify-center border-2 border-white">
                     3
@@ -842,7 +996,7 @@ export default function DoctorDashboard() {
 
               </div>
             </>
-          ) : (
+          ) : currentView === 'consultations' ? (
             <div className="space-y-6" style={{ animation: 'fadeIn 0.4s ease' }}>
               {/* History Search & Filters bar */}
               <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
@@ -1104,6 +1258,463 @@ export default function DoctorDashboard() {
                   </div>
                 )}
               </div>
+            </div>
+          ) : currentView === 'growth-charts' ? (
+            <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 animate-fade-in" style={{ animation: 'fadeIn 0.4s ease' }}>
+              {/* Left Column: Children Selection (30%) */}
+              <div className="lg:col-span-3 bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                <div className="p-4 border-b border-[#E2E8F0] bg-slate-50">
+                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5">Registered Children</h3>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                      <Search size={14} className="text-slate-400" />
+                    </span>
+                    <input
+                      type="text"
+                      className="w-full bg-white border border-[#E2E8F0] rounded-xl pl-8 pr-3 py-2 text-xs text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#1D61FF] transition-all"
+                      placeholder="Search child name or ID..."
+                      value={childSearchTerm}
+                      onChange={(e) => setChildSearchTerm(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="divide-y divide-slate-100 overflow-y-auto max-h-[600px] flex-grow">
+                  {loadingChildren ? (
+                    <div className="p-5 text-center text-slate-400 text-xs">Loading children...</div>
+                  ) : filteredChildrenForCharts.length === 0 ? (
+                    <div className="p-5 text-center text-slate-400 text-xs">No children found.</div>
+                  ) : (
+                    filteredChildrenForCharts.map((item) => (
+                      <div
+                        key={item._id}
+                        onClick={() => handleSelectChildForCharts(item)}
+                        className={`p-3.5 hover:bg-slate-50 transition-all cursor-pointer border-l-4 ${
+                          selectedChildForCharts?._id === item._id
+                            ? 'bg-[#1D61FF]/5 border-l-[#1D61FF]'
+                            : 'border-l-transparent'
+                        }`}
+                      >
+                        <div className="font-bold text-slate-800 text-xs">{item.name}</div>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-1 font-mono">
+                          <span>{item.digitalHealthId}</span>
+                          <span>•</span>
+                          <span>{item.gender}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Growth Charts and Ledger (70%) */}
+              <div className="lg:col-span-7 flex flex-col gap-6">
+                {selectedChildForCharts ? (
+                  <>
+                    {/* Active Child Profile Card */}
+                    <div className="bg-[#0F172A] text-white rounded-2xl p-5 shadow-md flex justify-between items-center flex-wrap gap-4">
+                      <div>
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-[#1D61FF]">Child Health Profile</span>
+                        <h2 className="text-base font-bold mt-0.5">{selectedChildForCharts.name}</h2>
+                        <div className="flex items-center gap-3 text-[10px] text-slate-400 mt-1 font-mono">
+                          <span>ID: {selectedChildForCharts.digitalHealthId}</span>
+                          <span>•</span>
+                          <span>Gender: {selectedChildForCharts.gender}</span>
+                          <span>•</span>
+                          <span>DOB: {new Date(selectedChildForCharts.dob).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 text-center text-xs">
+                        <div className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
+                          <span className="text-[9px] text-slate-400 block uppercase font-bold tracking-wider">Birth Weight</span>
+                          <strong className="text-white block mt-0.5">{selectedChildForCharts.birthWeight} kg</strong>
+                        </div>
+                        <div className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
+                          <span className="text-[9px] text-slate-400 block uppercase font-bold tracking-wider">Birth Height</span>
+                          <strong className="text-white block mt-0.5">{selectedChildForCharts.birthHeight} cm</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Growth Chart Panel */}
+                    <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                      <div className="p-4 border-b border-[#E2E8F0] bg-slate-50/50 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                        <div>
+                          <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">WHO Growth Charts</h3>
+                          <p className="text-[10px] text-slate-400">Comparing weight, height and BMI velocity trends against standard WHO bands</p>
+                        </div>
+                        
+                        <div className="flex border border-[#E2E8F0] rounded-xl overflow-hidden bg-white text-xs">
+                          {['Weight', 'Height', 'BMI'].map((tab) => (
+                            <button
+                              key={tab}
+                              onClick={() => setActiveChartTab(tab)}
+                              className={`px-3 py-1.5 font-bold transition-all ${
+                                activeChartTab === tab
+                                  ? 'bg-[#1D61FF] text-white'
+                                  : 'text-slate-600 hover:bg-slate-50'
+                              }`}
+                            >
+                              {tab}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="p-5">
+                        {chartWeightData.length === 0 ? (
+                          <div className="py-20 text-center text-slate-400 text-xs">No growth record metrics registered for this child.</div>
+                        ) : (
+                          <div className="h-64">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart
+                                data={activeChartTab === 'Weight' ? chartWeightData : activeChartTab === 'Height' ? chartHeightData : chartBmiData}
+                                margin={{ top: 10, right: 10, left: -25, bottom: 0 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                                <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                                <YAxis tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                                <Tooltip
+                                  contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '8px', fontSize: '11px', border: 'none' }}
+                                  labelStyle={{ fontWeight: 'bold', color: '#1D61FF' }}
+                                />
+                                <Legend wrapperStyle={{ fontSize: '9px', paddingTop: '15px' }} />
+
+                                {/* WHO Percentiles */}
+                                <Area type="monotone" dataKey="p97" name="97th Percentile" stroke="#EF4444" strokeWidth={1} strokeDasharray="3 3" fill="none" />
+                                <Area type="monotone" dataKey="p85" name="85th Percentile" stroke="#F59E0B" strokeWidth={1} strokeDasharray="3 3" fill="none" />
+                                <Area type="monotone" dataKey="p50" name="WHO Median (50th)" stroke="#10B981" strokeWidth={1.5} strokeDasharray="4 4" fill="none" />
+                                <Area type="monotone" dataKey="p15" name="15th Percentile" stroke="#F59E0B" strokeWidth={1} strokeDasharray="3 3" fill="none" />
+                                <Area type="monotone" dataKey="p3" name="3rd Percentile" stroke="#EF4444" strokeWidth={1.5} strokeDasharray="2 2" fill="none" />
+
+                                {/* Child Series */}
+                                <Area
+                                  type="monotone"
+                                  dataKey={activeChartTab === 'Weight' ? 'weight' : activeChartTab === 'Height' ? 'height' : 'bmi'}
+                                  name={activeChartTab === 'Weight' ? 'Weight (kg)' : activeChartTab === 'Height' ? 'Height (cm)' : 'BMI Value'}
+                                  stroke="#1D61FF"
+                                  strokeWidth={3}
+                                  fill="url(#colorValDoctor)"
+                                />
+
+                                <defs>
+                                  <linearGradient id="colorValDoctor" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#1D61FF" stopOpacity={0.15} />
+                                    <stop offset="95%" stopColor="#1D61FF" stopOpacity={0} />
+                                  </linearGradient>
+                                </defs>
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Historical Ledger Table */}
+                    <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                      <div className="p-4 border-b border-[#E2E8F0] bg-slate-50/50">
+                        <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Growth Record Ledger</h3>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-[#E2E8F0] text-slate-500 uppercase tracking-wider font-bold text-[10px]">
+                              <th className="px-4 py-3">Age Interval</th>
+                              <th className="px-4 py-3">Recorded Date</th>
+                              <th className="px-4 py-3">Weight (kg)</th>
+                              <th className="px-4 py-3">Height (cm)</th>
+                              <th className="px-4 py-3">BMI</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {selectedChildForCharts.growthRecords && selectedChildForCharts.growthRecords.length > 0 ? (
+                              selectedChildForCharts.growthRecords.map((rec, index) => (
+                                <tr key={index} className="hover:bg-slate-50/50">
+                                  <td className="px-4 py-3 font-semibold text-slate-700">{rec.ageInterval}</td>
+                                  <td className="px-4 py-3 text-slate-500">{new Date(rec.date).toLocaleDateString()}</td>
+                                  <td className="px-4 py-3 font-bold text-[#1D61FF]">{rec.weight} kg</td>
+                                  <td className="px-4 py-3 text-slate-700">{rec.height} cm</td>
+                                  <td className="px-4 py-3 text-slate-700">{rec.bmi}</td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan="5" className="px-4 py-6 text-center text-slate-400">No measurements logged yet.</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="p-10 text-center bg-white border border-[#E2E8F0] rounded-2xl shadow-sm text-slate-400 flex flex-col items-center justify-center">
+                    <FileText size={40} className="text-slate-300 mb-3" />
+                    <p className="text-xs">No child selected.</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Select a child from the left panel to display growth charts.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6" style={{ animation: 'fadeIn 0.4s ease' }}>
+              {/* Referrals Search bar */}
+              <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div className="relative w-full md:w-96">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                    <Search size={16} className="text-slate-400" />
+                  </span>
+                  <input
+                    type="text"
+                    className="w-full bg-slate-50 border border-[#E2E8F0] rounded-xl pl-9 pr-4 py-2.5 text-xs text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#1D61FF] transition-all"
+                    placeholder="Search outbound referrals by child name, ID, hospital..."
+                    value={referralSearchTerm}
+                    onChange={(e) => setReferralSearchTerm(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Metrics row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-sm flex items-center gap-4">
+                  <div className="p-3 bg-[#1D61FF]/10 rounded-xl text-[#1D61FF]">
+                    <Activity size={20} />
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[10px] font-bold tracking-wider uppercase block">Outbound Specialist Referrals</span>
+                    <h3 className="text-2xl font-extrabold text-[#0F172A] mt-0.5">{clinicReferralsList.length}</h3>
+                  </div>
+                </div>
+                
+                <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-sm flex items-center gap-4">
+                  <div className="p-3 bg-red-50 rounded-xl text-red-500">
+                    <AlertTriangle size={20} />
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[10px] font-bold tracking-wider uppercase block">Critical Referred</span>
+                    <h3 className="text-2xl font-extrabold text-[#0F172A] mt-0.5">
+                      {clinicReferralsList.filter(c => c.alertLevel === 'Critical').length}
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-sm flex items-center gap-4">
+                  <div className="p-3 bg-blue-50 rounded-xl text-blue-600">
+                    <MapPin size={20} />
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[10px] font-bold tracking-wider uppercase block">Lady Ridgeway Transfers</span>
+                    <h3 className="text-2xl font-extrabold text-[#0F172A] mt-0.5">
+                      {clinicReferralsList.filter(c => c.assessment?.specialistReferral?.includes('Lady Ridgeway')).length}
+                    </h3>
+                  </div>
+                </div>
+              </div>
+
+              {/* Referrals table list */}
+              <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                <div className="p-5 border-b border-[#E2E8F0] bg-white">
+                  <h3 className="text-sm font-bold text-[#0F172A]">Clinic Outbound Transfers</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Generate official tertiary hospital referral letters for parents</p>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-[#E2E8F0] text-slate-500 uppercase tracking-wider font-bold text-[10px]">
+                        <th className="px-4 py-3.5">Child Details & ID</th>
+                        <th className="px-4 py-3.5">Referred Date</th>
+                        <th className="px-4 py-3.5">Clinical Diagnosis</th>
+                        <th className="px-4 py-3.5">Destination Specialist Hospital</th>
+                        <th className="px-4 py-3.5">Severity</th>
+                        <th className="px-4 py-3.5 text-right">Referral Letter</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {loadingReferrals ? (
+                        <tr>
+                          <td colSpan="6" className="px-4 py-10 text-center text-slate-400">Loading clinic referrals...</td>
+                        </tr>
+                      ) : filteredClinicReferrals.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" className="px-4 py-10 text-center text-slate-400">No outbound referrals matching query.</td>
+                        </tr>
+                      ) : (
+                        filteredClinicReferrals.map((item) => (
+                          <tr key={item._id} className="hover:bg-slate-50/70 transition-all">
+                            <td className="px-4 py-4">
+                              <div className="font-bold text-slate-800">{item.name}</div>
+                              <div className="text-[10px] text-slate-400 font-mono mt-0.5">{item.digitalHealthId}</div>
+                            </td>
+                            <td className="px-4 py-4 text-slate-600 font-medium">
+                              {item.assessment?.reviewedAt ? new Date(item.assessment.reviewedAt).toLocaleDateString() : 'N/A'}
+                            </td>
+                            <td className="px-4 py-4 font-semibold text-slate-700 max-w-[200px] truncate">
+                              {item.assessment?.diagnosis}
+                            </td>
+                            <td className="px-4 py-4 text-slate-800 font-bold max-w-[200px] truncate">
+                              📍 {item.assessment?.specialistReferral}
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className={`inline-block w-2.5 h-2.5 rounded-full mr-1.5 vertical-middle ${
+                                item.alertLevel === 'Critical' ? 'bg-red-500' : item.alertLevel === 'High' ? 'bg-amber-500' : 'bg-blue-400'
+                              }`}></span>
+                              <span className="font-bold text-slate-700">{item.alertLevel}</span>
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              <button
+                                onClick={() => setSelectedReferralForLetter(item)}
+                                className="bg-[#1D61FF] hover:bg-blue-700 text-white text-[10px] font-bold px-3.5 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5 ml-auto"
+                              >
+                                <FileText size={12} />
+                                <span>Generate Letter</span>
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Referral Letter Modal overlay */}
+              {selectedReferralForLetter && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                  <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                    {/* Modal Control Header */}
+                    <div className="bg-[#0F172A] text-white p-4 flex justify-between items-center px-6">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Official Outpatient Referral Document</span>
+                      <button 
+                        onClick={() => setSelectedReferralForLetter(null)}
+                        className="text-slate-400 hover:text-white font-bold text-sm bg-white/10 px-2 py-0.5 rounded-lg"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    {/* Letter Body (Print target) */}
+                    <div className="p-8 overflow-y-auto flex-grow text-slate-800 space-y-6" id="printable-referral-letter">
+                      {/* Sri Lanka Health Ministry Header */}
+                      <div className="text-center border-b-2 border-slate-900 pb-4">
+                        <h2 className="text-sm font-extrabold tracking-widest uppercase text-slate-900">{currentUser.assignedClinic || 'MOH Primary Child Health Clinic'}</h2>
+                        <p className="text-[10px] text-slate-500 font-semibold tracking-wider mt-0.5">Ministry of Health, Sri Lanka</p>
+                        <p className="text-[9px] text-slate-400 mt-1">Ref ID: {selectedReferralForLetter.digitalHealthId}-REF</p>
+                      </div>
+
+                      {/* Recipient details */}
+                      <div className="flex justify-between items-start text-xs">
+                        <div>
+                          <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">To Hospital:</p>
+                          <strong className="text-slate-900 text-sm block mt-0.5">The Pediatrician-in-Charge</strong>
+                          <span className="text-slate-700 font-semibold">{selectedReferralForLetter.assessment?.specialistReferral}</span>
+                          <span className="text-slate-500 block">Sri Lanka</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Date of Referral:</p>
+                          <strong className="text-slate-900 block mt-0.5">
+                            {selectedReferralForLetter.assessment?.reviewedAt ? new Date(selectedReferralForLetter.assessment.reviewedAt).toLocaleDateString(undefined, {
+                              year: 'numeric', month: 'long', day: 'numeric'
+                            }) : new Date().toLocaleDateString()}
+                          </strong>
+                        </div>
+                      </div>
+
+                      {/* Subject */}
+                      <div className="bg-slate-100 border-l-4 border-l-[#1D61FF] p-3 text-xs">
+                        <strong className="text-slate-900 font-bold">SUBJECT: CLINICAL REFERRAL FOR {selectedReferralForLetter.name.toUpperCase()}</strong>
+                        <div className="text-[10px] text-slate-600 mt-1 font-mono">
+                          Digital Health ID: {selectedReferralForLetter.digitalHealthId} • Gender: {selectedReferralForLetter.gender} • Age: {selectedReferralForLetter.age}
+                        </div>
+                      </div>
+
+                      {/* Clinical Details */}
+                      <div className="space-y-4 text-xs leading-relaxed">
+                        <p>Dear Colleague,</p>
+                        <p>
+                          I am referring this child for specialist pediatric evaluation and management. The child was referred to our clinic by the Grama Niladhari division midwife due to <strong>{selectedReferralForLetter.alertReason}</strong>.
+                        </p>
+
+                        {/* Vitals table */}
+                        <div>
+                          <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[9px] mb-1.5">Registered Vitals</h4>
+                          <table className="w-full text-left border-collapse border border-slate-200">
+                            <thead>
+                              <tr className="bg-slate-50 border-b border-slate-200 text-[9px] font-bold text-slate-500 uppercase">
+                                <th className="p-2 border-r border-slate-200">Temperature</th>
+                                <th className="p-2 border-r border-slate-200">Heart Rate</th>
+                                <th className="p-2">Blood Pressure</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr className="text-slate-700 font-medium">
+                                <td className="p-2 border-r border-slate-200">{selectedReferralForLetter.vitals?.temp || '36.8°C'}</td>
+                                <td className="p-2 border-r border-slate-200">{selectedReferralForLetter.vitals?.hr || '98 bpm'}</td>
+                                <td className="p-2">{selectedReferralForLetter.vitals?.bp || '90/60 mmHg'}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Clinical assessment info */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                            <strong className="text-[9px] uppercase tracking-wider text-slate-500 block">Primary Diagnosis & Findings</strong>
+                            <p className="mt-1 font-semibold text-slate-800">{selectedReferralForLetter.assessment?.diagnosis}</p>
+                          </div>
+                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                            <strong className="text-[9px] uppercase tracking-wider text-slate-500 block">Immediate Treatment Initiated</strong>
+                            <p className="mt-1 font-semibold text-slate-800">{selectedReferralForLetter.assessment?.treatment}</p>
+                          </div>
+                        </div>
+
+                        {/* Midwife's notes */}
+                        {selectedReferralForLetter.historyNotes && (
+                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 italic">
+                            <strong className="text-[9px] uppercase tracking-wider text-slate-400 not-italic block mb-1">Midwife Field Observations:</strong>
+                            "{selectedReferralForLetter.historyNotes}"
+                          </div>
+                        )}
+
+                        <p className="pt-3">
+                          Thank you for taking over the management of this case. Please sync clinical feedback to our database upon discharge.
+                        </p>
+                      </div>
+
+                      {/* Doctor Signature Block */}
+                      <div className="pt-8 border-t border-slate-100 flex justify-between items-end text-xs">
+                        <div>
+                          <p className="text-slate-500">Kind regards,</p>
+                          <strong className="text-slate-800 block mt-4">{currentUser.name || 'Dr. Nimal Silva'}</strong>
+                          <span className="text-slate-500">{currentUser.assignedClinic || 'MOH Primary Pediatric Clinic'}</span>
+                        </div>
+                        <div className="text-center w-28 h-12 border-2 border-dashed border-slate-300 rounded-lg flex items-center justify-center text-[10px] text-slate-400 font-mono">
+                          Official Stamp
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Print letter controls */}
+                    <div className="p-4 bg-slate-50 border-t border-[#E2E8F0] flex gap-3 justify-end px-6">
+                      <button
+                        onClick={() => setSelectedReferralForLetter(null)}
+                        className="bg-white border border-[#E2E8F0] hover:bg-slate-50 text-xs font-bold text-slate-700 px-4 py-2.5 rounded-xl transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => window.print()}
+                        className="bg-[#1D61FF] hover:bg-blue-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-1.5"
+                      >
+                        <Printer size={14} />
+                        <span>Print Document</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

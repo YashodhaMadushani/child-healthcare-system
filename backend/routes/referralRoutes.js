@@ -4,7 +4,8 @@ const {
   getPendingReferrals, 
   submitAssessment, 
   resetReferrals,
-  getReviewedReferrals
+  getReviewedReferrals,
+  getSpecialistReferrals
 } = require('../controllers/referralController');
 
 // GET Request - Fetch all pending referrals
@@ -12,6 +13,9 @@ router.get('/', getPendingReferrals);
 
 // GET Request - Fetch all reviewed consultations
 router.get('/reviewed', getReviewedReferrals);
+
+// GET Request - Fetch all outbound specialist referrals
+router.get('/specialist-referrals', getSpecialistReferrals);
 
 
 // POST Request - Submit diagnosis & assessment

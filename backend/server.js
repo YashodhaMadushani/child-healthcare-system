@@ -13,10 +13,12 @@ app.use(cors());
 const childRoutes = require('./routes/childRoutes');
 const authRoutes = require('./routes/authRoutes');
 const referralRoutes = require('./routes/referralRoutes');
+const scheduleRoutes = require('./routes/scheduleRoutes');
 
 app.use('/api/children', childRoutes); // Child Management
 app.use('/api/auth', authRoutes);     // Authentication and Staff Management
 app.use('/api/referrals', referralRoutes); // Doctor Referrals and Assessments
+app.use('/api/schedules', scheduleRoutes); // MOH Clinic Schedules
  
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)

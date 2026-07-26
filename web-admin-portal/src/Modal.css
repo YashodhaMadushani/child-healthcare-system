@@ -122,7 +122,8 @@
     }
 
     /* 3. මුද්‍රණය විය යුතු කාඩ්පත සහ එහි අන්තර්ගතය පමණක් දර්ශනය කරන්න */
-    .qr-card-to-print, .qr-card-to-print * { 
+    .qr-card-to-print, .qr-card-to-print *,
+    #printable-referral-letter, #printable-referral-letter * { 
         visibility: visible; 
     }
     
@@ -138,6 +139,17 @@
         -webkit-print-color-adjust: exact; /* බ්‍රවුසරයෙන් වර්ණ මැකී යාම වැලැක්වීමට */
         print-color-adjust: exact;
         page-break-inside: avoid;
+    }
+
+    #printable-referral-letter {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        padding: 40px !important;
+        background-color: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 
     /* 5. මුද්‍රණය වන පිටුවේ බටන්ස් දර්ශනය වීම වලක්වන්න */

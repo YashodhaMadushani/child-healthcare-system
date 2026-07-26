@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { IoEye, IoEyeOff } from 'react-icons/io5';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import './Login.css';
 
 const Login = () => {
@@ -12,11 +12,23 @@ const Login = () => {
   const [passwordVisible, setPasswordVisible] = useState(false);
   
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 2000);
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const roleParam = params.get('role');
+    if (roleParam) {
+      const capitalized = roleParam.charAt(0).toUpperCase() + roleParam.slice(1);
+      if (['Admin', 'Doctor', 'Midwife'].includes(capitalized)) {
+        setSelectedRole(capitalized);
+      }
+    }
+  }, [location.search]);
 
   // Login Function 
   const handleLogin = async (e) => {

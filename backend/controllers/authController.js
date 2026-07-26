@@ -290,4 +290,17 @@ const resetPassword = async (req, res) => {
   }
 };
 
-module.exports = { registerStaff, registerParent, loginUser, getStaff, addChildToParent, forgotPassword, resetPassword };
+const deleteStaff = async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) {
+      return res.status(404).json({ msg: 'Staff member not found.' });
+    }
+    res.status(200).json({ success: true, msg: 'Staff member deleted successfully.' });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+};
+
+module.exports = { registerStaff, registerParent, loginUser, getStaff, addChildToParent, forgotPassword, resetPassword, deleteStaff };

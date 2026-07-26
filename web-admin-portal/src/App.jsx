@@ -5,14 +5,18 @@ import Dashboard from './Dashboard';
 import MidwifeDashboard from './MidwifeDashboard';
 import DoctorDashboard from './DoctorDashboard';
 import ChildProfile from './ChildProfile';
+import Welcome from './Welcome';
 
 function App() {
   return (
     <Router>
       <div className="App">
         <Routes>
+          {/* Welcome Screen */}
+          <Route path="/" element={<Welcome />} />
+          
           {/* Login */}
-          <Route path="/" element={<Login />} />
+          <Route path="/login" element={<Login />} />
           
           {/* Dashboard */}
           <Route path="/dashboard" element={<Dashboard />} />

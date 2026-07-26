@@ -9,7 +9,8 @@ const {
   getStaff, 
   addChildToParent,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  deleteStaff
 } = require('../controllers/authController');
 
 // Routes Mapping
@@ -17,6 +18,7 @@ router.post('/register-staff', registerStaff);
 router.post('/register-parent', registerParent);
 router.post('/login', loginUser);
 router.get('/staff', getStaff);
+router.delete('/staff/:id', deleteStaff);
 router.post('/add-child', addChildToParent); 
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);

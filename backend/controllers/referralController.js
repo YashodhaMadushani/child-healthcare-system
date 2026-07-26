@@ -247,11 +247,26 @@ const getReviewedReferrals = async (req, res) => {
   }
 };
 
+// Get all specialist referrals (referrals made to tertiary hospitals)
+const getSpecialistReferrals = async (req, res) => {
+  try {
+    const referrals = await Referral.find({
+      status: 'Reviewed',
+      'assessment.specialistReferral': { $exists: true, $ne: 'None' }
+    }).sort({ 'assessment.reviewedAt': -1 });
+    res.status(200).json(referrals);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: 'Server Error' });
+  }
+};
 
 module.exports = {
   getPendingReferrals,
   submitAssessment,
   resetReferrals,
-  getReviewedReferrals
+  getReviewedReferrals,
+  getSpecialistReferrals
 };
+
 
