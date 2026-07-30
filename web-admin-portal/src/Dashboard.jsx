@@ -52,6 +52,10 @@ const Dashboard = () => {
   const [selectedChildReport, setSelectedChildReport] = useState(null);
   const [activeReportTab, setActiveReportTab] = useState('growth'); // growth, vaccines, assessments, nutrition
 
+  // Parent Records States
+  const [parentsList, setParentsList] = useState([]);
+  const [loadingParents, setLoadingParents] = useState(false);
+
   // Clinic Schedules States
   const [schedulesList, setSchedulesList] = useState([]);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
@@ -82,6 +86,19 @@ const Dashboard = () => {
       showToast("Failed to fetch children records.");
     } finally {
       setLoadingChildren(false);
+    }
+  };
+
+  const fetchParents = async () => {
+    setLoadingParents(true);
+    try {
+      const res = await axios.get('http://localhost:5000/api/auth/parents');
+      setParentsList(res.data || []);
+    } catch (err) {
+      console.error("Failed to load parent records:", err);
+      showToast("Failed to fetch parent records.");
+    } finally {
+      setLoadingParents(false);
     }
   };
 
@@ -142,6 +159,7 @@ const Dashboard = () => {
     fetchStaff();
     fetchChildren();
     fetchSchedules();
+    fetchParents();
   }, []);
 
   const handleLogout = () => {
@@ -207,6 +225,10 @@ const Dashboard = () => {
 
   const doctorCount = staffData.filter(s => s.role && s.role.toLowerCase() === 'doctor').length;
   const midwifeCount = staffData.filter(s => s.role && s.role.toLowerCase() === 'midwife').length;
+  const totalCompletedVaccinations = childrenList.reduce((acc, child) => {
+    const completed = child.vaccinations?.filter(v => v.status?.toLowerCase() === 'completed').length || 0;
+    return acc + completed;
+  }, 0);
 
   const filteredStaff = staffData.filter(s => {
     const nameStr = s.name || '';
@@ -231,6 +253,15 @@ const Dashboard = () => {
            idStr.toLowerCase().includes(searchTerm.toLowerCase()) ||
            clinicStr.toLowerCase().includes(searchTerm.toLowerCase()) ||
            motherStr.toLowerCase().includes(searchTerm.toLowerCase());
+  });
+
+  const filteredParents = parentsList.filter(p => {
+    const nameStr = p.name || '';
+    const emailStr = p.email || '';
+    const phoneStr = p.phone || '';
+    return nameStr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           emailStr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           phoneStr.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
   return (
@@ -319,6 +350,20 @@ const Dashboard = () => {
               <Calendar size={16} />
               <span>Clinic Schedules</span>
             </button>
+            <button 
+              onClick={() => {
+                setCurrentTab('parents');
+                fetchParents();
+              }}
+              className={`w-full text-left p-3.5 rounded-xl font-semibold transition-all flex items-center gap-2.5 text-xs uppercase tracking-wider ${
+                currentTab === 'parents' 
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' 
+                  : 'text-slate-400 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              <Users size={16} />
+              <span>Registered Parents</span>
+            </button>
           </nav>
         </div>
 
@@ -342,7 +387,13 @@ const Dashboard = () => {
             <input 
               type="text" 
               className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-xs" 
-              placeholder={currentTab === 'children' ? "Search children by name, ID, clinic center, mother..." : "Search staff by name, NIC, or assigned clinic..."}
+              placeholder={
+                currentTab === 'children' 
+                  ? "Search children by name, ID, clinic center, mother..." 
+                  : currentTab === 'parents'
+                  ? "Search parents by name, email, phone..."
+                  : "Search staff by name, NIC, or assigned clinic..."
+              }
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -369,7 +420,7 @@ const Dashboard = () => {
           <StatCard title="Registered Children" value={childrenList.length} change={`+${childrenList.length} total`} color="bg-blue-500" onClick={() => setCurrentTab('children')} />
           <StatCard title="Active Doctors" value={doctorCount} change={`+${doctorCount} total`} color="bg-emerald-500" onClick={() => setCurrentTab('doctors')} />
           <StatCard title="Midwives" value={midwifeCount} change={`+${midwifeCount} total`} color="bg-purple-500" onClick={() => setCurrentTab('midwives')} />
-          <StatCard title="Vaccinations" value="428" change="+6.7%" color="bg-amber-500" onClick={() => setCurrentTab('overview')} />
+          <StatCard title="Vaccinations" value={totalCompletedVaccinations} change={`+${totalCompletedVaccinations} total`} color="bg-amber-500" onClick={() => setCurrentTab('overview')} />
         </div>
 
         {/* Dynamic Views */}
@@ -444,6 +495,64 @@ const Dashboard = () => {
                         </tr>
                       );
                     })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : currentTab === 'parents' ? (
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
+            <h3 className="text-sm font-bold text-slate-800 mb-5">Registered Parents Directory</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="text-slate-400 uppercase tracking-wider border-b border-slate-100 font-bold text-[10px]">
+                    <th className="pb-3">Parent Name</th>
+                    <th className="pb-3">Contact Email</th>
+                    <th className="pb-3">Phone Number</th>
+                    <th className="pb-3">Linked Children IDs</th>
+                    <th className="pb-3">Registered Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loadingParents ? (
+                    <tr>
+                      <td colSpan="5" className="py-8 text-center text-slate-400">Loading parents directory...</td>
+                    </tr>
+                  ) : filteredParents.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="py-8 text-center text-slate-400 font-medium italic">No parents found.</td>
+                    </tr>
+                  ) : (
+                    filteredParents.map((parent) => (
+                      <tr key={parent._id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-4 font-bold text-slate-800">
+                          {parent.name}
+                        </td>
+                        <td className="py-4 text-slate-600 font-medium">
+                          {parent.email || 'N/A'}
+                        </td>
+                        <td className="py-4 text-slate-600 font-medium">
+                          {parent.phone || 'N/A'}
+                        </td>
+                        <td className="py-4 text-slate-600">
+                          {parent.children && parent.children.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5">
+                              {parent.children.map((childId, idx) => (
+                                <span key={idx} className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[10px] font-bold font-mono">
+                                  {childId}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic">No linked children</span>
+                          )}
+                        </td>
+                        <td className="py-4 text-slate-500">
+                          {parent.createdAt ? new Date(parent.createdAt).toLocaleDateString() : 'N/A'}
+                        </td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
               </table>

@@ -1,20 +1,36 @@
 import axios from 'axios';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { translations } from '../constants/translations';
 
 export default function LoginScreen() {
   const router = useRouter();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [lang, setLang] = useState('en');
+
+  useEffect(() => {
+    const loadLang = async () => {
+      const savedLang = await AsyncStorage.getItem('lang');
+      if (savedLang) setLang(savedLang);
+    };
+    loadLang();
+  }, []);
+
+  const changeLanguage = async (newLang) => {
+    setLang(newLang);
+    await AsyncStorage.setItem('lang', newLang);
+  };
+
+  const t = translations[lang];
 
   const handleLogin = async () => {
-    // empty fields validation
     if (!identifier || !password) {
-      Alert.alert('Required Information', 'Please enter your email/phone number and password.');
+      Alert.alert(t.loginTitle, 'Please enter your credentials.');
       return;
     }
 
@@ -26,19 +42,16 @@ export default function LoginScreen() {
       });
 
       if (response.status === 200) {
-        const { name, children } = response.data.user; // array coming from backend
+        const { name, children } = response.data.user;
 
-        // Save token and user info to AsyncStorage
         if (response.data.token) {
           await AsyncStorage.setItem('token', response.data.token);
           await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
         }
 
-        // Validation & Navigation Logic: changing according to the number of children
         if (!children || children.length === 0) {
           Alert.alert('No Profiles Found', 'There are no child profiles linked to this account.');
         } else if (children.length > 1) {
-          // 2 children or more -> navigate to child-selector screen
           router.replace({
             pathname: '/child-selector',
             params: {
@@ -47,7 +60,6 @@ export default function LoginScreen() {
             }
           });
         } else {
-          // 1 child -> navigate directly to dashboard with that child's ID
           router.replace({
             pathname: '/dashboard',
             params: {
@@ -66,17 +78,30 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.content}>
+          {/* Language Selector Row */}
+          <View style={styles.langSelectorRow}>
+            <TouchableOpacity onPress={() => changeLanguage('en')} style={[styles.langBtn, lang === 'en' && styles.langBtnActive]}>
+              <Text style={[styles.langText, lang === 'en' && styles.langTextActive]}>🇬🇧 EN</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => changeLanguage('si')} style={[styles.langBtn, lang === 'si' && styles.langBtnActive]}>
+              <Text style={[styles.langText, lang === 'si' && styles.langTextActive]}>🇱🇰 සිං</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => changeLanguage('ta')} style={[styles.langBtn, lang === 'ta' && styles.langBtnActive]}>
+              <Text style={[styles.langText, lang === 'ta' && styles.langTextActive]}>🇱🇰 தம்</Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.logoContainer}>
             <View style={styles.iconBox}>
               <Ionicons name="heart" size={40} color="white" />
             </View>
           </View>
           <Text style={styles.headerText1}>MediKid</Text>
-          <Text style={styles.headerText}>Welcome Back</Text>
-          <Text style={styles.subText}>{"Sign in to access your child's health records"}</Text>
+          <Text style={styles.headerText}>{t.loginTitle}</Text>
+          <Text style={styles.subText}>Sign in to access your child's health records</Text>
 
           <View style={styles.inputSection}>
-            <Text style={styles.label}>Email Address or Phone Number</Text>
+            <Text style={styles.label}>{t.identifierLabel}</Text>
             <TextInput
               style={styles.input}
               placeholder="example@email.com or 077XXXXXXX"
@@ -87,7 +112,7 @@ export default function LoginScreen() {
               autoCorrect={false}
             />
 
-            <Text style={styles.label}>Password</Text>
+            <Text style={styles.label}>{t.passwordLabel}</Text>
             <View style={styles.passwordWrapper}>
               <TextInput
                 style={styles.passwordInput}
@@ -107,13 +132,13 @@ export default function LoginScreen() {
           </View>
 
           <TouchableOpacity style={styles.signInButton} onPress={handleLogin}>
-            <Text style={styles.signInButtonText}>Sign In</Text>
+            <Text style={styles.signInButtonText}>{t.loginBtn}</Text>
           </TouchableOpacity>
 
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>{"Don't have an account?"}</Text>
+            <Text style={styles.footerText}>{t.noAccount}</Text>
             <TouchableOpacity onPress={() => router.navigate('/signup')}>
-              <Text style={styles.signUpText}>Sign Up</Text>
+              <Text style={styles.signUpText}> {t.signUpBtn}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -124,7 +149,12 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  content: { paddingHorizontal: 25, paddingTop: 60, paddingBottom: 40 },
+  content: { paddingHorizontal: 25, paddingTop: 40, paddingBottom: 40 },
+  langSelectorRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 20 },
+  langBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 15, borderWidth: 1, borderColor: '#e1e1e1', marginLeft: 8 },
+  langBtnActive: { backgroundColor: '#007bff', borderColor: '#007bff' },
+  langText: { fontSize: 11, fontWeight: 'bold', color: '#666' },
+  langTextActive: { color: '#fff' },
   logoContainer: { marginBottom: 30 },
   iconBox: { backgroundColor: '#007bff', width: 60, height: 60, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
   headerText1: { fontSize: 32, fontWeight: 'bold', color: '#007bff' },

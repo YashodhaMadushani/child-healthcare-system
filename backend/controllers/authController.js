@@ -3,6 +3,9 @@ const Child = require('../models/Child');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+// In-memory cache for parent OTPs (key: email or phone, value: { otp, expires })
+const otpStore = new Map();
+
 // common utility function to validate email format
 const isValidEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -89,14 +92,31 @@ const registerParent = async (req, res) => {
 
     // OTP Step 1: send OTP step (not save to DB)
     if (!isOtpVerification) {
-      console.log("ℹ️ OTP Step 1 triggered. Verification required.");
+      const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString();
+      const identifier = phone || email;
+      otpStore.set(identifier, { otp: generatedOtp, expires: Date.now() + 5 * 60 * 1000 }); // 5 minutes expiration
+
+      console.log("\n=========================================");
+      console.log("📱 [MOCK SMS/EMAIL GATEWAY]");
+      console.log(`   To: ${identifier}`);
+      console.log(`   Verification OTP Code: ${generatedOtp}`);
+      console.log("=========================================\n");
+
       return res.status(200).json({ msg: 'OTP sent successfully!', otpRequired: true });
     }
 
-    // OTP Step 2: verify the oTP
-    if (otp !== '1234') {
+    // OTP Step 2: verify the OTP
+    const identifier = phone || email;
+    const cachedData = otpStore.get(identifier);
+    if (!cachedData || cachedData.expires < Date.now()) {
+      return res.status(400).json({ msg: 'OTP expired or not found. Please request a new code.' });
+    }
+    if (otp !== cachedData.otp) {
       return res.status(400).json({ msg: 'Invalid OTP code. Please try again.' });
     }
+    
+    // Clean up OTP cache
+    otpStore.delete(identifier);
 
     // Fetch all children with the same phone number (siblings)
 
@@ -244,8 +264,16 @@ const forgotPassword = async (req, res) => {
       return res.status(404).json({ msg: 'No parent account found with this email or phone number.' });
     }
 
-    // Mock OTP dispatch
-    console.log(`ℹ️ OTP request for password reset. Sending code '1234' to: ${identifier}`);
+    // Dynamic OTP Generation
+    const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString();
+    otpStore.set(identifier, { otp: generatedOtp, expires: Date.now() + 5 * 60 * 1000 }); // 5 minutes expiration
+
+    console.log("\n=========================================");
+    console.log("📱 [MOCK SMS/EMAIL GATEWAY - PASSWORD RESET]");
+    console.log(`   To: ${identifier}`);
+    console.log(`   Reset OTP Code: ${generatedOtp}`);
+    console.log("=========================================\n");
+
     return res.status(200).json({ msg: 'OTP code sent successfully!', otpRequired: true });
   } catch (err) {
     console.error(err.message);
@@ -266,9 +294,16 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({ msg: 'Password must be at least 6 characters long.' });
     }
 
-    if (otp !== '1234') {
+    const cachedData = otpStore.get(identifier);
+    if (!cachedData || cachedData.expires < Date.now()) {
+      return res.status(400).json({ msg: 'OTP expired or not found. Please request a new code.' });
+    }
+    if (otp !== cachedData.otp) {
       return res.status(400).json({ msg: 'Invalid OTP code. Please try again.' });
     }
+
+    // Clean up OTP cache
+    otpStore.delete(identifier);
 
     const user = await User.findOne({
       $or: [{ email: identifier }, { phone: identifier }],
@@ -303,4 +338,14 @@ const deleteStaff = async (req, res) => {
   }
 };
 
-module.exports = { registerStaff, registerParent, loginUser, getStaff, addChildToParent, forgotPassword, resetPassword, deleteStaff };
+const getParents = async (req, res) => {
+  try {
+    const parents = await User.find({ role: 'parent' }).select('-password');
+    res.json(parents);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+};
+
+module.exports = { registerStaff, registerParent, loginUser, getStaff, getParents, addChildToParent, forgotPassword, resetPassword, deleteStaff };
