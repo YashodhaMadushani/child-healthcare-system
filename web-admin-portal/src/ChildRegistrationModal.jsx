@@ -21,7 +21,7 @@ const CLINIC_CENTERS = [
   "Deegoda",
   "Kodagoda",
   "Andugoda",
-  "Hettigoda"
+  "Hettiagoda"
 ];
 
 const GUARDIAN_TYPES = [

@@ -39,12 +39,34 @@ const chartData = [
   { name: 'Jun', count: 428 },
 ];
 
+const ASSIGNED_CLINICS = [
+  "Imaduwa Central",
+  "Dikkumbura",
+  "Thittagalla",
+  "Paragoda",
+  "Kombala",
+  "Bedipita",
+  "Hatangala",
+  "Puswelkada",
+  "Danduwana",
+  "Angulugaha",
+  "Dorape",
+  "Kahanda",
+  "Induranvila",
+  "Deegoda",
+  "Kodagoda",
+  "Andugoda",
+  "Hettiagoda"
+];
+
 const Dashboard = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [staffData, setStaffData] = useState([]);
   const [currentTab, setCurrentTab] = useState('overview'); // overview, doctors, midwives, children, schedules
   const [searchTerm, setSearchTerm] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
+  const [selectedClinicFilter, setSelectedClinicFilter] = useState('all');
+  const [user, setUser] = useState(null);
 
   // Child Records States
   const [childrenList, setChildrenList] = useState([]);
@@ -59,7 +81,7 @@ const Dashboard = () => {
   // Clinic Schedules States
   const [schedulesList, setSchedulesList] = useState([]);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
-  const [schedClinicCenter, setSchedClinicCenter] = useState('MOH Colombo 05 Clinic');
+  const [schedClinicCenter, setSchedClinicCenter] = useState(ASSIGNED_CLINICS[0]);
   const [schedSessionType, setSchedSessionType] = useState('Immunization Clinic');
   const [schedDate, setSchedDate] = useState('');
   const [schedStaff, setSchedStaff] = useState('');
@@ -160,6 +182,20 @@ const Dashboard = () => {
     fetchChildren();
     fetchSchedules();
     fetchParents();
+
+    // Get logged in user profile
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        setUser(parsed);
+        if (parsed.assignedClinic && parsed.assignedClinic !== 'N/A') {
+          setSelectedClinicFilter(parsed.assignedClinic);
+        }
+      } catch (e) {
+        console.error("Failed to parse logged-in user details", e);
+      }
+    }
   }, []);
 
   const handleLogout = () => {
@@ -245,6 +281,9 @@ const Dashboard = () => {
   });
 
   const filteredChildren = childrenList.filter(c => {
+    if (selectedClinicFilter !== 'all' && c.assignedClinicCenter !== selectedClinicFilter) {
+      return false;
+    }
     const nameStr = c.name || '';
     const idStr = c.digitalHealthId || '';
     const clinicStr = c.assignedClinicCenter || '';
@@ -426,7 +465,35 @@ const Dashboard = () => {
         {/* Dynamic Views */}
         {currentTab === 'children' ? (
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
-            <h3 className="text-sm font-bold text-slate-800 mb-5">Master Children Health Registry</h3>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-6 border-b border-slate-100">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">Master Children Health Registry</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">Showing records filtered by clinic center</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Filter Clinic:</span>
+                <select
+                  value={selectedClinicFilter}
+                  onChange={(e) => setSelectedClinicFilter(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value="all">All Clinics ({childrenList.length})</option>
+                  {ASSIGNED_CLINICS.map(clinic => {
+                    const count = childrenList.filter(c => c.assignedClinicCenter === clinic).length;
+                    return (
+                      <option key={clinic} value={clinic}>
+                        {clinic} ({count})
+                      </option>
+                    );
+                  })}
+                </select>
+                {user?.assignedClinic && user.assignedClinic !== 'N/A' && (
+                  <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-[9px] font-bold">
+                    📍 Assigned: {user.assignedClinic}
+                  </span>
+                )}
+              </div>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -649,13 +716,13 @@ const Dashboard = () => {
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Clinic Center Destination</label>
                   <select
-                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                     value={schedClinicCenter}
                     onChange={(e) => setSchedClinicCenter(e.target.value)}
                   >
-                    <option value="MOH Colombo 05 Clinic">MOH Colombo 05 Clinic</option>
-                    <option value="Durape Clinic Center">Durape Clinic Center</option>
-                    <option value="Imaduwa Clinic Center">Imaduwa Clinic Center</option>
+                    {ASSIGNED_CLINICS.map(clinic => (
+                      <option key={clinic} value={clinic}>{clinic}</option>
+                    ))}
                   </select>
                 </div>
 

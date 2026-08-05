@@ -2,11 +2,31 @@ import React, { useState } from 'react';
 import { IoEye, IoEyeOff } from 'react-icons/io5';
 import axios from 'axios';
 
+const ASSIGNED_CLINICS = [
+  "Imaduwa Central",
+  "Dikkumbura",
+  "Thittagalla",
+  "Paragoda",
+  "Kombala",
+  "Bedipita",
+  "Hatangala",
+  "Puswelkada",
+  "Danduwana",
+  "Angulugaha",
+  "Dorape",
+  "Kahanda",
+  "Induranvila",
+  "Deegoda",
+  "Kodagoda",
+  "Andugoda",
+  "Hettiagoda"
+];
+
 const AddStaffModal = ({ isOpen, onClose, refreshData }) => {
   const initialFormData = {
     name: '',
     role: 'Doctor',
-    clinic: '',
+    clinic: ASSIGNED_CLINICS[0],
     email: '', 
     password: '',
     phone: '',
@@ -76,14 +96,16 @@ const AddStaffModal = ({ isOpen, onClose, refreshData }) => {
             </div>
             <div>
               <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-1.5">Assigned Clinic *</label>
-              <input 
-                type="text" 
+              <select 
                 required
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                placeholder="Clinic Location"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm cursor-pointer"
                 value={formData.clinic}
                 onChange={(e) => setFormData({...formData, clinic: e.target.value})}
-              />
+              >
+                {ASSIGNED_CLINICS.map(clinic => (
+                  <option key={clinic} value={clinic}>{clinic}</option>
+                ))}
+              </select>
             </div>
           </div>
 
