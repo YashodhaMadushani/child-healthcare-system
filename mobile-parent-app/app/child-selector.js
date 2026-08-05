@@ -6,18 +6,18 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 export default function ChildSelectorScreen() {
   const router = useRouter();
   const { pName, childrenList } = useLocalSearchParams();
-  
+
   const [childrenDetails, setChildrenDetails] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const ids = childrenList ? JSON.parse(childrenList) : [];
-    
+
     const fetchChildrenDetails = async () => {
       try {
         const res = await fetch(`http://172.22.74.230:5000/api/children`);
         const data = await res.json();
-        
+
         if (Array.isArray(data)) {
           // Filter data to get only the children that belong to this parent
           const filtered = data.filter(c => ids.includes(c.digitalHealthId));
@@ -50,9 +50,9 @@ export default function ChildSelectorScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.welcomeText}>ආයුබෝවන්, {pName} 👋</Text>
-        <Text style={styles.title}>දරුවා තෝරන්න</Text>
-        <Text style={styles.subTitle}>විස්තර බැලීම සඳහා අවශ්‍ය දරුවාගේ නම හෝ Digital ID එක මත ක්ලික් කරන්න.</Text>
+        <Text style={styles.welcomeText}>Welcome, {pName} 👋</Text>
+        <Text style={styles.title}>Select Child</Text>
+        <Text style={styles.subTitle}>Click on the child's name or Digital ID to view details.</Text>
 
         {loading ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 50 }}>
@@ -92,12 +92,12 @@ const styles = StyleSheet.create({
   welcomeText: { fontSize: 16, color: '#666', fontWeight: '500' },
   title: { fontSize: 28, fontWeight: 'bold', color: '#1a1a1a', marginTop: 5 },
   subTitle: { fontSize: 14, color: '#666', marginTop: 8, marginBottom: 30 },
-  card: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: '#fff', 
-    padding: 16, 
-    borderRadius: 16, 
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 16,
     marginBottom: 15,
     borderWidth: 1,
     borderColor: '#efefef',

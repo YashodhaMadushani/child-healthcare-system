@@ -62,32 +62,44 @@ const registerStaff = async (req, res) => {
 
 // 2. Register Parent (Mobile App Signup - Updated with OTP and Phone support)
 const registerParent = async (req, res) => {
+  console.log("📥 [registerParent] Received request body:", req.body);
   const { name, digitalHealthId, email, phone, password, otp, isOtpVerification } = req.body;
 
   try {
     if (!name || !digitalHealthId || !password) {
+      console.log("⚠️ [registerParent] Missing required fields (name, digitalHealthId, or password)");
       return res.status(400).json({ msg: 'Please enter all required fields.' });
     }
     if (!email && !phone) {
+      console.log("⚠️ [registerParent] Missing email and phone");
       return res.status(400).json({ msg: 'Please provide either an Email Address or Phone Number.' });
     }
     if (password.length < 6) {
+      console.log("⚠️ [registerParent] Password too short");
       return res.status(400).json({ msg: 'Password must be at least 6 characters long.' });
     }
 
     // Validation: Check if the provided Digital Health ID exists in the Child collection
-    const childExists = await Child.findOne({ digitalHealthId });
+    const formattedId = digitalHealthId.trim().toUpperCase();
+    const childExists = await Child.findOne({ digitalHealthId: formattedId });
     if (!childExists) {
+      console.log(`⚠️ [registerParent] Digital Health ID not found: ${formattedId}`);
       return res.status(404).json({ msg: 'Invalid Digital Health ID. Not registered in system.' });
     }
 
     if (email) {
       const emailExists = await User.findOne({ email });
-      if (emailExists) return res.status(400).json({ msg: 'This email is already registered.' });
+      if (emailExists) {
+        console.log(`⚠️ [registerParent] Email already registered: ${email}`);
+        return res.status(400).json({ msg: 'This email is already registered.' });
+      }
     }
     if (phone) {
       const phoneExists = await User.findOne({ phone });
-      if (phoneExists) return res.status(400).json({ msg: 'This phone number is already registered.' });
+      if (phoneExists) {
+        console.log(`⚠️ [registerParent] Phone already registered: ${phone}`);
+        return res.status(400).json({ msg: 'This phone number is already registered.' });
+      }
     }
 
     // OTP Step 1: send OTP step (not save to DB)
@@ -101,6 +113,15 @@ const registerParent = async (req, res) => {
       console.log(`   To: ${identifier}`);
       console.log(`   Verification OTP Code: ${generatedOtp}`);
       console.log("=========================================\n");
+
+      // Write to otp_log.txt in the project root for easy retrieval
+      const fs = require('fs');
+      const path = require('path');
+      try {
+        fs.appendFileSync(path.join(__dirname, '../../otp_log.txt'), `[SIGNUP OTP] To: ${identifier} -> Code: ${generatedOtp} (at ${new Date().toLocaleTimeString()})\n`);
+      } catch (err) {
+        console.error("Failed to write OTP to log file:", err);
+      }
 
       return res.status(200).json({ msg: 'OTP sent successfully!', otpRequired: true });
     }
@@ -122,7 +143,7 @@ const registerParent = async (req, res) => {
 
     const siblingChildren = await Child.find({ phone: phone || childExists.phone });
 
-    let childrenIds = [digitalHealthId];
+    let childrenIds = [formattedId];
     if (siblingChildren.length > 0) {
       childrenIds = siblingChildren.map(c => c.digitalHealthId);
     }
@@ -134,7 +155,7 @@ const registerParent = async (req, res) => {
       phone: phone || undefined,
       password,
       role: 'parent',
-      children: childrenIds // User Schema එකේ children array එකට ඇතුළත් වේ
+      children: childrenIds 
     });
 
     const salt = await bcrypt.genSalt(10);
@@ -180,6 +201,30 @@ const loginUser = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: 'Invalid password.' });
 
+    // Synchronize parent's children list at login time
+    if (user.role === 'parent') {
+      const orConditions = [];
+      if (user.phone) {
+        orConditions.push({ phone: user.phone });
+        orConditions.push({ secondaryPhone: user.phone });
+      }
+      if (user.email) {
+        orConditions.push({ email: user.email });
+      }
+      if (orConditions.length > 0) {
+        const siblingChildren = await Child.find({ $or: orConditions });
+        if (siblingChildren.length > 0) {
+          const childrenIds = siblingChildren.map(c => c.digitalHealthId);
+          const currentChildren = user.children || [];
+          const needsUpdate = childrenIds.some(id => !currentChildren.includes(id)) || currentChildren.length !== childrenIds.length;
+          if (needsUpdate) {
+            user.children = childrenIds;
+            await user.save();
+          }
+        }
+      }
+    }
+
     // JWT Token generation
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
 
@@ -223,7 +268,8 @@ const addChildToParent = async (req, res) => {
     }
 
     // Validation: Check if the provided Digital Health ID exists in the Child collection
-    const childExists = await Child.findOne({ digitalHealthId });
+    const formattedId = digitalHealthId.trim().toUpperCase();
+    const childExists = await Child.findOne({ digitalHealthId: formattedId });
     if (!childExists) return res.status(404).json({ msg: 'Digital Health ID not found in system.' });
 
     // Find the parent user
@@ -231,12 +277,12 @@ const addChildToParent = async (req, res) => {
     if (!user) return res.status(404).json({ msg: 'Parent account not found.' });
 
     // Validation: Check if the provided Digital Health ID is already linked to the parent's account (Duplicate Check)
-    if (user.children.includes(digitalHealthId)) {
+    if (user.children.includes(formattedId)) {
       return res.status(400).json({ msg: 'This child is already linked to your account.' });
     }
 
     // add the new child to the array
-    user.children.push(digitalHealthId);
+    user.children.push(formattedId);
     await user.save();
 
     res.status(200).json({ msg: 'Child added successfully!', childName: childExists.name });
@@ -273,6 +319,15 @@ const forgotPassword = async (req, res) => {
     console.log(`   To: ${identifier}`);
     console.log(`   Reset OTP Code: ${generatedOtp}`);
     console.log("=========================================\n");
+
+    // Write to otp_log.txt in the project root for easy retrieval
+    const fs = require('fs');
+    const path = require('path');
+    try {
+      fs.appendFileSync(path.join(__dirname, '../../otp_log.txt'), `[PASSWORD RESET OTP] To: ${identifier} -> Code: ${generatedOtp} (at ${new Date().toLocaleTimeString()})\n`);
+    } catch (err) {
+      console.error("Failed to write OTP to log file:", err);
+    }
 
     return res.status(200).json({ msg: 'OTP code sent successfully!', otpRequired: true });
   } catch (err) {

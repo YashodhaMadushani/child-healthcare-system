@@ -104,6 +104,20 @@ const registerChild = async (req, res) => {
     });
 
     await newChild.save();
+
+    // Link newly registered child to parent user profile if it exists
+    const User = require('../models/User');
+    const parentUser = await User.findOne({
+      $or: [{ phone: phone }, { secondaryPhone: phone }],
+      role: 'parent'
+    });
+    if (parentUser) {
+      if (!parentUser.children.includes(digitalHealthId)) {
+        parentUser.children.push(digitalHealthId);
+        await parentUser.save();
+      }
+    }
+
     res.status(201).json({ success: true, msg: 'Child registered successfully.', child: newChild });
   } catch (err) {
     console.error(err);

@@ -136,6 +136,7 @@ export default function Dashboard() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const [parentName, setParentName] = useState(params.pName || "Parent");
+  const [parentPhone, setParentPhone] = useState("");
   const [childrenIds, setChildrenIds] = useState([]);
   const [allChildrenData, setAllChildrenData] = useState([]);
   const [selectedChildId, setSelectedChildId] = useState(params.selectedChildId || params.cId || "");
@@ -197,6 +198,7 @@ export default function Dashboard() {
         if (userJson) {
           const user = JSON.parse(userJson);
           if (user.name) setParentName(user.name);
+          if (user.phone) setParentPhone(user.phone);
           if (user.children && Array.isArray(user.children)) {
             setChildrenIds(user.children);
             // Default to the first child in children array if not already selected
@@ -221,16 +223,30 @@ export default function Dashboard() {
         const data = await res.json();
 
         if (Array.isArray(data)) {
-          // If we have childrenIds, filter data to match only this parent's children
-          if (childrenIds.length > 0) {
-            const filtered = data.filter(c => childrenIds.includes(c.digitalHealthId));
-            setAllChildrenData(filtered);
-          } else {
-            // Fallback: If no childrenIds loaded yet but we have selectedChildId, filter by that
-            const targetId = selectedChildId || params.selectedChildId || params.cId;
-            if (targetId) {
-              const filtered = data.filter(c => c.digitalHealthId === targetId);
-              setAllChildrenData(filtered);
+          // Filter data to match parent's children by either childrenIds OR matching phone number
+          const filtered = data.filter(c => 
+            childrenIds.includes(c.digitalHealthId) || 
+            (parentPhone && (c.phone === parentPhone || c.secondaryPhone === parentPhone))
+          );
+          
+          setAllChildrenData(filtered);
+
+          // Update childrenIds and AsyncStorage if new children were discovered
+          const foundIds = filtered.map(c => c.digitalHealthId);
+          if (foundIds.length > 0) {
+            const needsUpdate = foundIds.some(id => !childrenIds.includes(id)) || foundIds.length !== childrenIds.length;
+            if (needsUpdate) {
+              setChildrenIds(foundIds);
+              const userJson = await AsyncStorage.getItem('user');
+              if (userJson) {
+                const user = JSON.parse(userJson);
+                user.children = foundIds;
+                await AsyncStorage.setItem('user', JSON.stringify(user));
+              }
+              // Set selected child if not already selected
+              if (!selectedChildId && foundIds.length > 0) {
+                setSelectedChildId(foundIds[0]);
+              }
             }
           }
         }
@@ -242,7 +258,7 @@ export default function Dashboard() {
     };
 
     fetchChildData();
-  }, [childrenIds, selectedChildId, params.selectedChildId, params.cId]);
+  }, [childrenIds, selectedChildId, parentPhone, params.selectedChildId, params.cId]);
 
   const child = allChildrenData.find(c => c.digitalHealthId === selectedChildId);
   const displayChildName = child?.name || "Child";
