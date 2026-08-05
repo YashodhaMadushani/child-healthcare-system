@@ -80,7 +80,16 @@ const MidwifeDashboard = () => {
                 let hasGrowthAlert = false;
                 if (records.length > 0) {
                     const latest = records[records.length - 1];
-                    if (latest.weight < 8.5) {
+                    const dob = new Date(child.dob);
+                    const diffMs = Date.now() - dob.getTime();
+                    const ageMonths = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24 * 30.4375)));
+                    let p15 = 2.9 + (ageMonths * 0.4);
+                    const isGirl = child.gender && (child.gender.toLowerCase() === 'girl' || child.gender.toLowerCase() === 'female');
+                    if (isGirl) {
+                        p15 -= 0.3;
+                    }
+
+                    if (latest.weight < p15) {
                         hasGrowthAlert = true;
                     }
                     if (records.length >= 2) {
@@ -128,11 +137,22 @@ const MidwifeDashboard = () => {
                 let alertStatus = '';
                 let velocity = 'N/A';
 
-                if (latest.weight < 6.5) {
+                const dob = new Date(child.dob);
+                const diffMs = Date.now() - dob.getTime();
+                const ageMonths = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24 * 30.4375)));
+                let p3 = 2.5 + (ageMonths * 0.35);
+                let p15 = 2.9 + (ageMonths * 0.4);
+                const isGirl = child.gender && (child.gender.toLowerCase() === 'girl' || child.gender.toLowerCase() === 'female');
+                if (isGirl) {
+                    p3 -= 0.3;
+                    p15 -= 0.3;
+                }
+
+                if (latest.weight < p3) {
                     isAlert = true;
                     alertStatus = 'Critical';
                     velocity = `Weight is very low: ${latest.weight}kg`;
-                } else if (latest.weight < 8.5) {
+                } else if (latest.weight < p15) {
                     isAlert = true;
                     alertStatus = 'Moderate Underweight';
                     velocity = `Weight: ${latest.weight}kg`;
@@ -177,8 +197,19 @@ const MidwifeDashboard = () => {
             const records = child.growthRecords || [];
             if (records.length > 0) {
                 const latest = records[records.length - 1];
-                let isCritical = latest.weight < 6.5;
-                let isModerate = latest.weight >= 6.5 && latest.weight < 8.5;
+                const dob = new Date(child.dob);
+                const diffMs = Date.now() - dob.getTime();
+                const ageMonths = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24 * 30.4375)));
+                let p3 = 2.5 + (ageMonths * 0.35);
+                let p15 = 2.9 + (ageMonths * 0.4);
+                const isGirl = child.gender && (child.gender.toLowerCase() === 'girl' || child.gender.toLowerCase() === 'female');
+                if (isGirl) {
+                    p3 -= 0.3;
+                    p15 -= 0.3;
+                }
+
+                let isCritical = latest.weight < p3;
+                let isModerate = latest.weight >= p3 && latest.weight < p15;
 
                 if (records.length >= 2) {
                     const prev = records[records.length - 2];
