@@ -181,25 +181,35 @@ const registerParent = async (req, res) => {
 
 // 3. common Login Function for both Staff and Parent
 const loginUser = async (req, res) => {
-  const { identifier, password, role } = req.body;
+  const { identifier, email, password, role } = req.body;
+  const loginId = identifier || email;
 
   try {
     // Validation: empty fields check
-    if (!identifier || !password || !role) {
-      return res.status(400).json({ msg: 'Please enter all fields.' });
+    if (!loginId || !password) {
+      return res.status(400).json({ msg: 'Please enter both email/phone and password.' });
     }
 
-    // Validation: Check if the user exists with the provided identifier (email or phone) and role
+    // Find user by identifier (email or phone)
     const user = await User.findOne({
-      $or: [{ email: identifier }, { phone: identifier }],
-      role: role.toLowerCase()
+      $or: [{ email: loginId }, { phone: loginId }]
     });
 
-    if (!user) return res.status(400).json({ msg: 'No user found with this credentials/role.' });
+    if (!user) {
+      return res.status(404).json({ msg: 'Invalid credentials. No account found with this email/phone.' });
+    }
+
+    // Optional Role-based access control check (if role is specified)
+    if (role && user.role.toLowerCase() !== role.toLowerCase()) {
+      const formattedUserRole = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+      return res.status(403).json({ 
+        msg: `Access Denied: Account role is '${formattedUserRole}', but portal was requested as '${role}'.` 
+      });
+    }
 
     // Validation: Check if the password matches
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ msg: 'Invalid password.' });
+    if (!isMatch) return res.status(400).json({ msg: 'Invalid password. Please try again.' });
 
     // Synchronize parent's children list at login time
     if (user.role === 'parent') {

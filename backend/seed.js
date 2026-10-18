@@ -1,7 +1,11 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('./models/User');
+const dns = require('dns');
 require('dotenv').config();
+
+// Use Google/Cloudflare DNS to resolve MongoDB Atlas SRV records reliably
+dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const seedUsers = async () => {
   await mongoose.connect(process.env.MONGO_URI);

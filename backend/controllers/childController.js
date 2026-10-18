@@ -286,7 +286,7 @@ const recordClinicVisit = async (req, res) => {
       height,
       headCircumference,
       ageInterval,
-      administeredVaccines, // array of names e.g., ["BCG (Birth)"]
+      administeredVaccines, 
       nextDueVaccineDate,
       referToDoctor,
       referralReason,
@@ -303,7 +303,7 @@ const recordClinicVisit = async (req, res) => {
       return res.status(404).json({ msg: 'Child not found' });
     }
 
-    // Update observations
+    
     if (observations) {
       child.observations = observations;
     }

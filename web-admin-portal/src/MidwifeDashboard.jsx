@@ -584,7 +584,12 @@ const MidwifeDashboard = () => {
                                             </td>
                                             <td>
                                                 <div>{new Date(child.dob).toLocaleDateString()}</div>
-                                                <span className="text-[10px] text-slate-400">18 Months</span>
+                                                {(() => {
+                                                    const dob = new Date(child.dob);
+                                                    const diffMs = Date.now() - dob.getTime();
+                                                    const ageMonths = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24 * 30.4375)));
+                                                    return <span className="text-[10px] text-slate-400">{ageMonths} Months</span>;
+                                                })()}
                                             </td>
                                             <td>{child.motherName}</td>
                                             <td>{child.phone}</td>

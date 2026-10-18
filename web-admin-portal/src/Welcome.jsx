@@ -18,8 +18,8 @@ import './Welcome.css';
 const Welcome = () => {
   const navigate = useNavigate();
 
-  const handlePortalAccess = (role) => {
-    navigate(`/login?role=${role}`);
+  const handlePortalAccess = () => {
+    navigate('/login');
   };
 
   return (
@@ -37,8 +37,8 @@ const Welcome = () => {
         <nav className="header-nav">
           <a href="#features">Features</a>
           <a href="#portals">Staff Gateways</a>
-          <button onClick={() => handlePortalAccess('doctor')} className="quick-access-btn">
-            Quick Log In
+          <button onClick={() => handlePortalAccess()} className="quick-access-btn">
+            Staff Log In
           </button>
         </nav>
       </header>
@@ -114,7 +114,7 @@ const Welcome = () => {
             </div>
             <h3>District Registry Control</h3>
             <p>Register clinic centers, allocate doctors/midwives, and audit master reports.</p>
-            <button onClick={() => handlePortalAccess('admin')} className="portal-btn btn-admin">
+            <button onClick={() => handlePortalAccess()} className="portal-btn btn-admin">
               <span>Admin Portal Login</span>
               <ArrowRight size={14} />
             </button>
@@ -128,7 +128,7 @@ const Welcome = () => {
             </div>
             <h3>Clinical Assessments</h3>
             <p>Record medical diagnostics, file specialist transfers, and print referral letters.</p>
-            <button onClick={() => handlePortalAccess('doctor')} className="portal-btn btn-doctor">
+            <button onClick={() => handlePortalAccess()} className="portal-btn btn-doctor">
               <span>Pediatric Portal Login</span>
               <ArrowRight size={14} />
             </button>
@@ -142,7 +142,7 @@ const Welcome = () => {
             </div>
             <h3>Home & Clinic Care</h3>
             <p>Log growth logs, disburse Thriposha bags, and record clinic-visit logs.</p>
-            <button onClick={() => handlePortalAccess('midwife')} className="portal-btn btn-midwife">
+            <button onClick={() => handlePortalAccess()} className="portal-btn btn-midwife">
               <span>Midwife Portal Login</span>
               <ArrowRight size={14} />
             </button>
